@@ -14,3 +14,20 @@ This directory contains Supabase migrations, configurations, and Edge Functions 
 - Read-own-rows policies allow authenticated users to select only their own records (`auth.uid() = user_id`).
 - All insert/update/delete writes are restricted exclusively to the Edge Function via the Supabase Service Role.
 
+## Edge Functions
+
+### `/chat`
+Handles incoming client chat requests with dual security validation:
+1. `x-app-secret` header verification against `APP_SECRET`.
+2. Supabase Anonymous user JWT verification via `supabase.auth.getUser(token)`.
+
+### Deploy & Secrets
+```bash
+# Set secrets
+npm run secrets:set
+
+# Deploy chat function
+npm run functions:deploy
+```
+
+

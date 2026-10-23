@@ -1,0 +1,11 @@
+{
+  "name": "hathor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hathor roleplay chat application backend & client",
+  "scripts": {
+    "db:push": "supabase db push",
+    "functions:deploy": "supabase functions deploy chat --no-verify-jwt",
+    "secrets:set": "supabase secrets set APP_SECRET=$APP_SECRET LLM_API_KEY=$LLM_API_KEY DAILY_LIMIT=$DAILY_LIMIT"
+  }
+}
