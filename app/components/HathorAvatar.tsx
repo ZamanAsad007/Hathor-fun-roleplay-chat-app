@@ -6,10 +6,8 @@ import Animated, {
   withRepeat,
   withTiming,
   withSequence,
-  withDelay,
   Easing,
   useReducedMotion,
-  interpolateColor,
 } from 'react-native-reanimated';
 import Svg, {
   Defs,
@@ -46,20 +44,20 @@ export function HathorAvatar({
     });
   }, [systemReducedMotion]);
 
-  // Breathing float animation (-4px to +4px)
+  // Breathing float animation (-5px to +4px)
   const translateY = useSharedValue(0);
 
-  // Speaking sway animation (-2deg to +2deg)
+  // Speaking sway animation (-1.8deg to +1.8deg)
   const rotation = useSharedValue(0);
 
   // Flame flicker animation (scale and opacity)
   const flameScaleY = useSharedValue(1);
   const flameOpacity = useSharedValue(0.9);
 
-  // Blink animation (eyelid scaleY: 0 is open, 1 is closed)
+  // Blink animation (eyelid opacity / scaleY)
   const blinkProgress = useSharedValue(0);
 
-  // Heat normalized (0 to 1) for color transitions
+  // Heat normalized (0 to 1) for transitions
   const heatProgress = useSharedValue(heat / 100);
 
   useEffect(() => {
@@ -112,7 +110,7 @@ export function HathorAvatar({
     );
   }, [reduceMotion]);
 
-  // Start Blink loop (every 3.5 - 4.5 seconds)
+  // Start Blink loop (every 4 seconds)
   useEffect(() => {
     if (reduceMotion) {
       blinkProgress.value = 0;
@@ -145,7 +143,7 @@ export function HathorAvatar({
     );
   }, [isStreaming, reduceMotion]);
 
-  // Visual cues based on heat
+  // Visual cues based on heat & mode
   const glowColor =
     mode === 'warm'
       ? 'rgba(212, 175, 55, 0.45)'
@@ -190,7 +188,7 @@ export function HathorAvatar({
   });
 
   const glowAnimatedStyle = useAnimatedStyle(() => {
-    const scale = 1 + (heatProgress.value * 0.25);
+    const scale = 1 + heatProgress.value * 0.25;
     return {
       transform: [{ scale }],
     };
@@ -254,9 +252,9 @@ export function HathorAvatar({
             {/* Collar Jewelry Gradient */}
             <LinearGradient id="collarGrad" x1="0" y1="0" x2="1" y2="0">
               <Stop offset="0%" stopColor="#D4AF37" />
-              <Stop offset="25%" stopColor="#1E3A8A" />
+              <Stop offset="25%" stopColor={mode === 'Sekhmet' ? '#7F1D1D' : '#1E3A8A'} />
               <Stop offset="50%" stopColor="#D4AF37" />
-              <Stop offset="75%" stopColor="#1E3A8A" />
+              <Stop offset="75%" stopColor={mode === 'Sekhmet' ? '#7F1D1D' : '#1E3A8A'} />
               <Stop offset="100%" stopColor="#D4AF37" />
             </LinearGradient>
           </Defs>
@@ -275,10 +273,9 @@ export function HathorAvatar({
 
           {/* 2. Dress & Royal Usekh Collar */}
           <G id="dress">
-            {/* Shoulders & Robe */}
             <Path
               d="M 35 250 C 40 210 65 190 100 190 C 135 190 160 210 165 250 Z"
-              fill="#1C1418"
+              fill={mode === 'Sekhmet' ? '#260B12' : '#1C1418'}
             />
             {/* Egyptian Broad Collar Rings */}
             <Path
@@ -287,67 +284,189 @@ export function HathorAvatar({
               stroke="#D4AF37"
               strokeWidth="1.5"
             />
-            {/* Gold Pendant center */}
             <Circle cx="100" cy="210" r="5" fill="#D4AF37" stroke="#FDE68A" strokeWidth="1" />
           </G>
 
           {/* 3. Neck and Face */}
           <G id="face">
-            {/* Neck */}
             <Path
               d="M 86 160 L 86 195 C 95 198 105 198 114 195 L 114 160 Z"
               fill="#C2895A"
             />
-            {/* Head Contour / Chin */}
             <Path
               d="M 68 115 C 68 85 132 85 132 115 C 132 145 116 168 100 168 C 84 168 68 145 68 115 Z"
               fill="url(#skinGrad)"
             />
-            {/* Lips */}
+
+            {/* Nose */}
             <Path
-              d="M 94 146 Q 100 148 106 146 Q 100 152 94 146 Z"
-              fill={mode === 'Sekhmet' ? '#881337' : '#9F1239'}
-            />
-            {/* Subtle regal nose line */}
-            <Path
-              d="M 100 120 L 98 136 L 102 136"
+              d="M 100 118 L 98 135 L 102 135"
               stroke="#B37848"
               strokeWidth="1.5"
               strokeLinecap="round"
               fill="none"
             />
+
+            {/* EXPRESSION VARIANT: Eyebrows */}
+            {mode === 'warm' && (
+              // Amused, gentle high arches
+              <G id="brows-warm">
+                <Path
+                  d="M 76 114 Q 85 107 94 112"
+                  stroke="#1F151B"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  fill="none"
+                />
+                <Path
+                  d="M 106 112 Q 115 107 124 114"
+                  stroke="#1F151B"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  fill="none"
+                />
+              </G>
+            )}
+
+            {mode === 'watchful' && (
+              // Asymmetric assessing brow (teasing cocked right eyebrow)
+              <G id="brows-watchful">
+                <Path
+                  d="M 76 113 Q 85 109 94 113"
+                  stroke="#1F151B"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  fill="none"
+                />
+                <Path
+                  d="M 106 111 Q 115 103 124 107"
+                  stroke="#1F151B"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  fill="none"
+                />
+              </G>
+            )}
+
+            {mode === 'Sekhmet' && (
+              // Angry / Menacing sharply furrowed brows angled down to nose bridge
+              <G id="brows-sekhmet">
+                <Path
+                  d="M 75 109 L 95 116"
+                  stroke="#1F151B"
+                  strokeWidth="2.6"
+                  strokeLinecap="round"
+                  fill="none"
+                />
+                <Path
+                  d="M 105 116 L 125 109"
+                  stroke="#1F151B"
+                  strokeWidth="2.6"
+                  strokeLinecap="round"
+                  fill="none"
+                />
+              </G>
+            )}
+
+            {/* EXPRESSION VARIANT: Mouth & Lips */}
+            {mode === 'warm' && (
+              // Amused, soft radiant smile
+              <G id="mouth-warm">
+                <Path
+                  d="M 93 145 Q 100 152 107 145 Q 100 154 93 145 Z"
+                  fill="#DB2777"
+                />
+                <Path
+                  d="M 92 144 Q 100 151 108 144"
+                  stroke="#831843"
+                  strokeWidth="1.2"
+                  strokeLinecap="round"
+                  fill="none"
+                />
+              </G>
+            )}
+
+            {mode === 'watchful' && (
+              // Subtle knowing smirk (elevated right lip corner)
+              <G id="mouth-watchful">
+                <Path
+                  d="M 93 147 Q 99 149 107 143 Q 100 153 93 147 Z"
+                  fill="#BE123C"
+                />
+                <Path
+                  d="M 92 147 Q 99 150 108 143"
+                  stroke="#4C0519"
+                  strokeWidth="1.2"
+                  strokeLinecap="round"
+                  fill="none"
+                />
+              </G>
+            )}
+
+            {mode === 'Sekhmet' && (
+              // Angry / Fierce menacing snarling parted lips with feline fangs
+              <G id="mouth-sekhmet">
+                <Path
+                  d="M 92 144 Q 100 142 108 144 Q 100 155 92 144 Z"
+                  fill="#881337"
+                />
+                {/* Subtle feline fangs */}
+                <Path d="M 95 144 L 97 148 L 99 144 M 101 144 L 103 148 L 105 144" fill="#FFFBEB" />
+              </G>
+            )}
           </G>
 
-          {/* 4. Eyes & Kohl Eyeliner */}
+          {/* 4. Eyes & Kohl Eyeliner with Mode Variations */}
           <G id="eyes">
-            {/* Left Eye Kohl outline */}
+            {/* Left Eye */}
             <Path
-              d="M 78 122 Q 86 116 93 122 Q 86 128 78 122 Z"
+              d={
+                mode === 'Sekhmet'
+                  ? 'M 77 123 Q 86 118 94 123 Q 86 127 77 123 Z'
+                  : 'M 78 122 Q 86 116 93 122 Q 86 128 78 122 Z'
+              }
               fill="#FFFFFF"
               stroke="#111827"
               strokeWidth="2"
             />
             <Path d="M 74 121 L 78 122 M 93 122 L 96 120" stroke="#111827" strokeWidth="1.5" />
-            {/* Left Iris & Pupil */}
             <Circle cx="86" cy="122" r="3.5" fill={eyeColor} />
-            <Circle cx="86" cy="122" r="1.5" fill="#111827" />
+            {mode === 'Sekhmet' ? (
+              // Sekhmet solar lioness slit pupil
+              <Ellipse cx="86" cy="122" rx="1.2" ry="3.2" fill="#111827" />
+            ) : (
+              // Round pupil with gold star highlight
+              <>
+                <Circle cx="86" cy="122" r="1.6" fill="#111827" />
+                {mode === 'warm' && <Circle cx="87.5" cy="120.5" r="0.8" fill="#FFFFFF" />}
+              </>
+            )}
 
-            {/* Right Eye Kohl outline */}
+            {/* Right Eye */}
             <Path
-              d="M 107 122 Q 114 116 122 122 Q 114 128 107 122 Z"
+              d={
+                mode === 'Sekhmet'
+                  ? 'M 106 123 Q 114 118 123 123 Q 114 127 106 123 Z'
+                  : 'M 107 122 Q 114 116 122 122 Q 114 128 107 122 Z'
+              }
               fill="#FFFFFF"
               stroke="#111827"
               strokeWidth="2"
             />
             <Path d="M 104 120 L 107 122 M 122 122 L 126 121" stroke="#111827" strokeWidth="1.5" />
-            {/* Right Iris & Pupil */}
             <Circle cx="114" cy="122" r="3.5" fill={eyeColor} />
-            <Circle cx="114" cy="122" r="1.5" fill="#111827" />
+            {mode === 'Sekhmet' ? (
+              <Ellipse cx="114" cy="122" rx="1.2" ry="3.2" fill="#111827" />
+            ) : (
+              <>
+                <Circle cx="114" cy="122" r="1.6" fill="#111827" />
+                {mode === 'warm' && <Circle cx="115.5" cy="120.5" r="0.8" fill="#FFFFFF" />}
+              </>
+            )}
           </G>
 
           {/* 5. Hair Front & Braids */}
           <G id="hair-front">
-            {/* Bangs / Forehead framing */}
             <Path
               d="M 68 105 C 78 95 122 95 132 105 C 132 108 120 102 100 102 C 80 102 68 108 68 105 Z"
               fill="#110B10"
@@ -368,21 +487,18 @@ export function HathorAvatar({
 
           {/* 6. Crown and Horns (Sacred Cow Horns + Golden Disc) */}
           <G id="crown-and-horns">
-            {/* Left Horn */}
             <Path
               d="M 85 92 C 70 80 50 50 62 25 C 68 38 78 60 92 78 Z"
               fill="url(#goldHornsGrad)"
               stroke="#B45F06"
               strokeWidth="1"
             />
-            {/* Right Horn */}
             <Path
               d="M 115 92 C 130 80 150 50 138 25 C 132 38 122 60 108 78 Z"
               fill="url(#goldHornsGrad)"
               stroke="#B45F06"
               strokeWidth="1"
             />
-            {/* Golden Sun Disc held within the horns */}
             <Circle
               cx="100"
               cy="52"
@@ -391,7 +507,7 @@ export function HathorAvatar({
               stroke="#D4AF37"
               strokeWidth="1.5"
             />
-            {/* Uraeus cobra headband ornament */}
+            {/* Uraeus cobra */}
             <Path
               d="M 98 88 C 96 82 104 80 102 74 C 100 70 103 66 100 64"
               stroke="#D4AF37"

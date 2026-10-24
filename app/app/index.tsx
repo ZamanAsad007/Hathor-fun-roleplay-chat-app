@@ -28,6 +28,7 @@ import {
   requestNotificationPermissions,
   scheduleIdleNotification,
 } from '../lib/notifications';
+import { speakHathor, stopSpeaking } from '../lib/speech';
 
 const INITIAL_WELCOME_MESSAGE: ChatMessageItem = {
   id: 'welcome-1',
@@ -47,6 +48,10 @@ export default function ChatScreen() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+
+  // Audio / Speech State
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [currentlySpeakingId, setCurrentlySpeakingId] = useState<string | null>(null);
 
   // Error handling states
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -83,6 +88,10 @@ export default function ChatScreen() {
       }
     }
     init();
+
+    return () => {
+      stopSpeaking();
+    };
   }, []);
 
   useEffect(() => {
@@ -94,6 +103,10 @@ export default function ChatScreen() {
   const handleSend = async (textToSend?: string) => {
     const text = (textToSend ?? input).trim();
     if (!text || isSending) return;
+
+    // Stop ongoing speech before sending new message
+    stopSpeaking();
+    setCurrentlySpeakingId(null);
 
     setErrorMessage(null);
     setCanRetry(false);
@@ -122,11 +135,13 @@ export default function ChatScreen() {
     setIsSending(true);
 
     let hasReceivedTokens = false;
+    let accumulatedContent = '';
 
     try {
       await streamChatMessage(text, {
         onToken: (token: string) => {
           hasReceivedTokens = true;
+          accumulatedContent += token;
           setMessages((prev) =>
             prev.map((msg) =>
               msg.id === assistantMsgId ? { ...msg, content: msg.content + token } : msg
@@ -141,8 +156,16 @@ export default function ChatScreen() {
             setMode(data.mode);
           }
           setIsSending(false);
-          // Refresh the 24-hour idle impatience timer
           scheduleIdleNotification();
+
+          // Auto-speak if voice mode is enabled
+          if (voiceEnabled && accumulatedContent) {
+            speakHathor(accumulatedContent, data.mode || mode, {
+              onStart: () => setCurrentlySpeakingId(assistantMsgId),
+              onDone: () => setCurrentlySpeakingId(null),
+              onError: () => setCurrentlySpeakingId(null),
+            });
+          }
         },
         onError: (err) => {
           handleStreamError(err, text, assistantMsgId, hasReceivedTokens);
@@ -199,11 +222,26 @@ export default function ChatScreen() {
   };
 
   const handleResetChat = async () => {
+    stopSpeaking();
+    setCurrentlySpeakingId(null);
     await resetChat();
     setMessages([INITIAL_WELCOME_MESSAGE]);
     setHeat(40);
     setMode('watchful');
     await scheduleIdleNotification();
+  };
+
+  const toggleMessageSpeech = (messageId: string, content: string) => {
+    if (currentlySpeakingId === messageId) {
+      stopSpeaking();
+      setCurrentlySpeakingId(null);
+    } else {
+      speakHathor(content, mode, {
+        onStart: () => setCurrentlySpeakingId(messageId),
+        onDone: () => setCurrentlySpeakingId(null),
+        onError: () => setCurrentlySpeakingId(null),
+      });
+    }
   };
 
   const getBadgeColor = () => {
@@ -245,6 +283,19 @@ export default function ChatScreen() {
         </View>
 
         <View style={styles.statusRight}>
+          {/* TTS Auto-Voice Toggle */}
+          <TouchableOpacity
+            style={[styles.voiceToggle, voiceEnabled && styles.voiceToggleActive]}
+            onPress={() => {
+              const nextState = !voiceEnabled;
+              setVoiceEnabled(nextState);
+              if (!nextState) stopSpeaking();
+            }}
+            accessibilityLabel="Toggle voice narration"
+          >
+            <Text style={styles.voiceToggleIcon}>{voiceEnabled ? '🔊' : '🔇'}</Text>
+          </TouchableOpacity>
+
           {isAuthenticating || isLoadingHistory ? (
             <ActivityIndicator size="small" color="#EAD196" />
           ) : (
@@ -265,7 +316,12 @@ export default function ChatScreen() {
 
       {/* Hathor Presence Chamber Header */}
       <View style={styles.presenceContainer}>
-        <HathorAvatar heat={heat} mode={mode} isStreaming={isSending} size={110} />
+        <HathorAvatar
+          heat={heat}
+          mode={mode}
+          isStreaming={isSending || !!currentlySpeakingId}
+          size={110}
+        />
         <View style={styles.presenceInfo}>
           <Text
             style={[
@@ -280,7 +336,9 @@ export default function ChatScreen() {
               : 'WARM HATHOR'}
           </Text>
           <Text style={styles.presenceSubtitle}>
-            {mode === 'Sekhmet'
+            {currentlySpeakingId
+              ? 'Speaking aloud...'
+              : mode === 'Sekhmet'
               ? 'Cold fury • Scorching imagery'
               : mode === 'watchful'
               ? 'Watchful • Teasing & possessive'
@@ -298,6 +356,8 @@ export default function ChatScreen() {
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
         renderItem={({ item }) => {
           const isUser = item.role === 'user';
+          const isItemSpeaking = currentlySpeakingId === item.id;
+
           return (
             <View
               style={[
@@ -305,9 +365,25 @@ export default function ChatScreen() {
                 isUser ? styles.userBubble : styles.assistantBubble,
               ]}
             >
-              <Text style={isUser ? styles.userSender : styles.assistantSender}>
-                {isUser ? 'MORTAL' : 'HATHOR'}
-              </Text>
+              <View style={styles.senderRow}>
+                <Text style={isUser ? styles.userSender : styles.assistantSender}>
+                  {isUser ? 'MORTAL' : 'HATHOR'}
+                </Text>
+
+                {/* Speak line button for assistant messages */}
+                {!isUser && item.content.length > 0 && !isSending && (
+                  <TouchableOpacity
+                    style={styles.bubbleSpeakBtn}
+                    onPress={() => toggleMessageSpeech(item.id, item.content)}
+                    accessibilityLabel="Hear Hathor speak"
+                  >
+                    <Text style={styles.bubbleSpeakIcon}>
+                      {isItemSpeaking ? '⏹' : '🔊'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
               <Text style={styles.messageText}>
                 {item.content || (isSending && !isUser ? '...' : '')}
               </Text>
@@ -403,7 +479,7 @@ const styles = StyleSheet.create({
   statusRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   statusLabel: {
     color: '#A8929D',
@@ -420,6 +496,21 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '700',
+  },
+  voiceToggle: {
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: '#261622',
+    borderWidth: 1,
+    borderColor: '#3D2230',
+  },
+  voiceToggleActive: {
+    backgroundColor: '#3E2412',
+    borderColor: '#D4AF37',
+  },
+  voiceToggleIcon: {
+    fontSize: 13,
   },
   userStatus: {
     color: '#7D6B74',
@@ -478,19 +569,30 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: '#D4AF37',
   },
+  senderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   userSender: {
     color: '#C79DAB',
     fontSize: 10,
     fontWeight: '700',
-    marginBottom: 4,
     letterSpacing: 0.5,
   },
   assistantSender: {
     color: '#D4AF37',
     fontSize: 10,
     fontWeight: '700',
-    marginBottom: 4,
     letterSpacing: 0.5,
+  },
+  bubbleSpeakBtn: {
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
+  bubbleSpeakIcon: {
+    fontSize: 12,
   },
   messageText: {
     color: '#F4ECEF',

@@ -22,9 +22,13 @@ Deno.serve(async (req: Request) => {
 
   try {
     const appSecret = req.headers.get("x-app-secret");
-    const expectedSecret = Deno.env.get("APP_SECRET");
+    const rawExpectedSecrets = Deno.env.get("APP_SECRET") || "";
+    const validSecrets = rawExpectedSecrets
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
 
-    if (!expectedSecret || !appSecret || appSecret !== expectedSecret) {
+    if (validSecrets.length === 0 || !appSecret || !validSecrets.includes(appSecret)) {
       return new Response(
         JSON.stringify({ error: "Unauthorized: Invalid or missing app secret" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }

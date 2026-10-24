@@ -1,6 +1,8 @@
 /**
- * Unified LLM Client Wrapper with Streaming
- * Supports Gemini API with fallback to thematic persona simulation if the API key is invalid/denied.
+ * Unified LLM Client Wrapper with Multi-Provider Streaming
+ * Supports Gemini, Anthropic Claude, and OpenAI-compatible providers,
+ * all swappable via `LLM_PROVIDER` environment variable without changing any calling code.
+ * Falls back to thematic persona simulation if the API key is invalid/unavailable.
  */
 
 export interface ChatMessage {
@@ -15,17 +17,59 @@ export interface LLMStreamOptions {
   heat?: number;
 }
 
+/**
+ * Calls LLM via streaming SSE, supporting multiple providers via `LLM_PROVIDER`:
+ * - "gemini" (default)
+ * - "anthropic" / "claude"
+ * - "openai" / "groq"
+ */
 export async function* callLLM(
   messages: ChatMessage[],
   systemPrompt: string,
   options: LLMStreamOptions = {}
 ): AsyncGenerator<string, void, unknown> {
-  const apiKey = Deno.env.get("LLM_API_KEY") || "";
-  const model = options.model || "gemini-2.5-flash";
-  const heat = options.heat ?? 40;
+  const provider = (Deno.env.get("LLM_PROVIDER") || "gemini").toLowerCase().trim();
+  const apiKey =
+    Deno.env.get("LLM_API_KEY") ||
+    Deno.env.get("GEMINI_API_KEY") ||
+    Deno.env.get("ANTHROPIC_API_KEY") ||
+    Deno.env.get("OPENAI_API_KEY") ||
+    "";
 
-  // Format messages for Gemini API
-  const geminiContents = messages
+  if (apiKey) {
+    try {
+      if (provider === "anthropic" || provider === "claude") {
+        yield* streamAnthropic(messages, systemPrompt, apiKey, options);
+        return;
+      } else if (provider === "openai" || provider === "groq") {
+        yield* streamOpenAI(messages, systemPrompt, apiKey, options);
+        return;
+      } else {
+        // Default: Gemini
+        yield* streamGemini(messages, systemPrompt, apiKey, options);
+        return;
+      }
+    } catch (err) {
+      console.error(`LLM Provider (${provider}) error:`, err);
+    }
+  }
+
+  // Fallback persona response generator when LLM API is unavailable or denied access
+  yield* streamFallback(messages, options.heat ?? 40);
+}
+
+/**
+ * Gemini Stream Generator
+ */
+async function* streamGemini(
+  messages: ChatMessage[],
+  systemPrompt: string,
+  apiKey: string,
+  options: LLMStreamOptions
+): AsyncGenerator<string, void, unknown> {
+  const model = options.model || Deno.env.get("LLM_MODEL") || "gemini-2.5-flash";
+
+  const contents = messages
     .filter((m) => m.role !== "system")
     .map((m) => ({
       role: m.role === "assistant" ? "model" : "user",
@@ -36,64 +80,208 @@ export async function* callLLM(
     system_instruction: {
       parts: [{ text: systemPrompt }],
     },
-    contents: geminiContents,
+    contents,
     generationConfig: {
-      temperature: 0.8,
-      maxOutputTokens: 300,
+      temperature: options.temperature ?? 0.8,
+      maxOutputTokens: options.maxTokens ?? 300,
     },
   };
 
-  if (apiKey) {
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 
-      if (response.ok && response.body) {
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (trimmed.startsWith("data:")) {
-              const dataStr = trimmed.slice(5).trim();
-              if (!dataStr || dataStr === "[DONE]") continue;
-
-              try {
-                const parsed = JSON.parse(dataStr);
-                const text = parsed?.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (text) {
-                  yield text;
-                }
-              } catch {
-                // Ignore parse errors on malformed chunks
-              }
-            }
-          }
-        }
-        return;
-      } else {
-        const errText = await response.text();
-        console.warn(`Gemini API returned error ${response.status}: ${errText}`);
-      }
-    } catch (err) {
-      console.error("Gemini API call failed:", err);
-    }
+  if (!response.ok || !response.body) {
+    const errText = await response.text();
+    throw new Error(`Gemini API error ${response.status}: ${errText}`);
   }
 
-  // Fallback persona response generator when LLM API is unavailable or denied access
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("data:")) {
+        const dataStr = trimmed.slice(5).trim();
+        if (!dataStr || dataStr === "[DONE]") continue;
+
+        try {
+          const parsed = JSON.parse(dataStr);
+          const text = parsed?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) {
+            yield text;
+          }
+        } catch {
+          // Ignore chunk parse errors
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Anthropic Claude Stream Generator
+ */
+async function* streamAnthropic(
+  messages: ChatMessage[],
+  systemPrompt: string,
+  apiKey: string,
+  options: LLMStreamOptions
+): AsyncGenerator<string, void, unknown> {
+  const model = options.model || Deno.env.get("LLM_MODEL") || "claude-3-5-haiku-20241022";
+
+  const anthropicMessages = messages
+    .filter((m) => m.role !== "system")
+    .map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    }));
+
+  const payload = {
+    model,
+    system: systemPrompt,
+    messages: anthropicMessages,
+    max_tokens: options.maxTokens ?? 300,
+    temperature: options.temperature ?? 0.8,
+    stream: true,
+  };
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok || !response.body) {
+    const errText = await response.text();
+    throw new Error(`Anthropic API error ${response.status}: ${errText}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("data:")) {
+        const dataStr = trimmed.slice(5).trim();
+        if (!dataStr || dataStr === "[DONE]") continue;
+
+        try {
+          const parsed = JSON.parse(dataStr);
+          if (parsed.type === "content_block_delta" && parsed.delta?.text) {
+            yield parsed.delta.text;
+          }
+        } catch {
+          // Ignore chunk parse errors
+        }
+      }
+    }
+  }
+}
+
+/**
+ * OpenAI / Compatible Stream Generator
+ */
+async function* streamOpenAI(
+  messages: ChatMessage[],
+  systemPrompt: string,
+  apiKey: string,
+  options: LLMStreamOptions
+): AsyncGenerator<string, void, unknown> {
+  const baseUrl = Deno.env.get("OPENAI_BASE_URL") || "https://api.openai.com/v1";
+  const model = options.model || Deno.env.get("LLM_MODEL") || "gpt-4o-mini";
+
+  const openaiMessages = [
+    { role: "system", content: systemPrompt },
+    ...messages.map((m) => ({ role: m.role, content: m.content })),
+  ];
+
+  const payload = {
+    model,
+    messages: openaiMessages,
+    temperature: options.temperature ?? 0.8,
+    max_tokens: options.maxTokens ?? 300,
+    stream: true,
+  };
+
+  const response = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok || !response.body) {
+    const errText = await response.text();
+    throw new Error(`OpenAI API error ${response.status}: ${errText}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("data:")) {
+        const dataStr = trimmed.slice(5).trim();
+        if (!dataStr || dataStr === "[DONE]") continue;
+
+        try {
+          const parsed = JSON.parse(dataStr);
+          const text = parsed?.choices?.[0]?.delta?.content;
+          if (text) {
+            yield text;
+          }
+        } catch {
+          // Ignore chunk parse errors
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Thematic Persona Simulation Fallback
+ */
+async function* streamFallback(
+  messages: ChatMessage[],
+  heat: number
+): AsyncGenerator<string, void, unknown> {
   const fallbackReplies: Record<string, string[]> = {
     warm: [
       "The warm breath of the desert stirs around us, little mortal. I hear the quiet murmur of your soul, resting like golden dust beneath my temple pillars. Speak on; your devotion is not unseen.",
@@ -115,13 +303,11 @@ export async function* callLLM(
 
   let selectedReply = pool[Math.floor(Math.random() * pool.length)];
 
-  // Check for OOC in fallback
   if (lastUserMsg.toLowerCase().includes("(ooc)")) {
     selectedReply =
       "(Stepping out of character) Hey, I hear you. Everything is paused, and you're in a safe space. Take your time to breathe, and let me know whenever you'd like to continue or take a break.";
   }
 
-  // Stream in small token slices to simulate live generation
   const words = selectedReply.split(" ");
   for (let i = 0; i < words.length; i++) {
     const chunk = (i === 0 ? "" : " ") + words[i];

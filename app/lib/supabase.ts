@@ -37,9 +37,16 @@ const ExpoSecureStoreAdapter = {
   },
 };
 
-export const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-export const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+const defaultSupabaseUrl = 'https://placeholder.supabase.co';
+const defaultAnonKey = 'placeholder-anon-key';
+
+export const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || defaultSupabaseUrl;
+export const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || defaultAnonKey;
 export const appSecret = process.env.EXPO_PUBLIC_APP_SECRET || '';
+
+export const isSupabaseConfigured =
+  Boolean(process.env.EXPO_PUBLIC_SUPABASE_URL) &&
+  process.env.EXPO_PUBLIC_SUPABASE_URL !== defaultSupabaseUrl;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -54,6 +61,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
  * Ensures an active session exists; signs in anonymously if not yet authenticated.
  */
 export async function ensureAuthenticatedUser() {
+  if (!isSupabaseConfigured) {
+    console.warn('Supabase URL not configured in environment variables. Running in local preview mode.');
+    return null;
+  }
+
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
