@@ -26,9 +26,21 @@
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0D070A"
+    },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/android-icon-monochrome.png",
+          "color": "#D4AF37"
+        }
+      ]
     ]
   }
 }

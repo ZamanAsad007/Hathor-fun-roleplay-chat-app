@@ -221,3 +221,30 @@ export async function streamChatMessage(
     throw error;
   }
 }
+
+/**
+ * Purges all conversation history and resets temperament to default (40).
+ */
+export async function resetChat(): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  if (!token) {
+    throw new UnauthorizedError('Session expired. Please restart the app.');
+  }
+
+  const endpoint = `${supabaseUrl}/functions/v1/chat`;
+  const fetchFn = typeof expoFetch === 'function' ? expoFetch : fetch;
+  const res = await fetchFn(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-app-secret': appSecret,
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ action: 'reset' }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to reset chat: status ${res.status}`);
+  }
+}

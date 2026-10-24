@@ -68,6 +68,21 @@ Deno.serve(async (req: Request) => {
     });
 
     const body = await req.json().catch(() => ({}));
+
+    // Handle chat history and temperament reset
+    if (body?.action === "reset") {
+      await admin.from("messages").delete().eq("user_id", user.id);
+      await admin
+        .from("chat_state")
+        .update({ heat: 40, summary: "", last_seen: new Date().toISOString() })
+        .eq("user_id", user.id);
+
+      return new Response(
+        JSON.stringify({ status: "ok", message: "Conversation purged successfully" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const userMessageText = (body?.message || body?.content || "").trim();
 
     if (!userMessageText) {
