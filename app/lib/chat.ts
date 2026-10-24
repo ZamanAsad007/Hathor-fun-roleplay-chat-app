@@ -1,5 +1,5 @@
 import { fetch as expoFetch } from 'expo/fetch';
-import { supabase, supabaseUrl, appSecret } from './supabase';
+import { supabase, supabaseUrl, appSecret, isSupabaseConfigured } from './supabase';
 
 export interface ChatMessageItem {
   id: string;
@@ -31,6 +31,10 @@ export async function loadChatHistory(userId: string): Promise<{
   messages: ChatMessageItem[];
   heat: number;
 }> {
+  if (!isSupabaseConfigured) {
+    return { messages: [], heat: 40 };
+  }
+
   try {
     const [messagesRes, stateRes] = await Promise.all([
       supabase
@@ -94,6 +98,22 @@ export async function streamChatMessage(
   message: string,
   callbacks: StreamCallbacks
 ): Promise<void> {
+  if (!isSupabaseConfigured) {
+    // Graceful local preview mode
+    const isOOC = message.toLowerCase().includes('(ooc)');
+    const simulated = isOOC
+      ? '(Stepping out of character) Hey, I hear you. Everything is paused, and you are in a safe space. Take your time to breathe.'
+      : 'The warm breath of the desert stirs around us, little mortal. I hear the quiet murmur of your soul beneath my temple pillars. Speak on.';
+    const words = simulated.split(' ');
+    for (let i = 0; i < words.length; i++) {
+      const chunk = (i === 0 ? '' : ' ') + words[i];
+      callbacks.onToken(chunk);
+      await new Promise((r) => setTimeout(r, 35));
+    }
+    callbacks.onDone({ heat: 40, mode: 'watchful' });
+    return;
+  }
+
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
 
@@ -226,6 +246,10 @@ export async function streamChatMessage(
  * Purges all conversation history and resets temperament to default (40).
  */
 export async function resetChat(): Promise<void> {
+  if (!isSupabaseConfigured) {
+    return;
+  }
+
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
   if (!token) {
