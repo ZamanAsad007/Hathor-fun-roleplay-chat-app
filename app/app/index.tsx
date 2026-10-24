@@ -15,24 +15,31 @@ import { ensureAuthenticatedUser } from '../lib/supabase';
 import {
   loadChatHistory,
   streamChatMessage,
+  resetChat,
   ChatMessageItem,
   RateLimitError,
   UnauthorizedError,
   NetworkChatError,
 } from '../lib/chat';
 import { HathorAvatar } from '../components/HathorAvatar';
+import { SettingsModal } from '../components/SettingsModal';
+import { DisclaimerModal } from '../components/DisclaimerModal';
+import {
+  requestNotificationPermissions,
+  scheduleIdleNotification,
+} from '../lib/notifications';
+
+const INITIAL_WELCOME_MESSAGE: ChatMessageItem = {
+  id: 'welcome-1',
+  role: 'assistant',
+  content:
+    'You step into the sacred court of Hathor. The air is dry and thick with burning myrrh. Speak, little mortal. I am listening.',
+  createdAt: new Date(),
+};
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
-  const [messages, setMessages] = useState<ChatMessageItem[]>([
-    {
-      id: 'welcome-1',
-      role: 'assistant',
-      content:
-        'You step into the sacred court of Hathor. The air is dry and thick with burning myrrh. Speak, little mortal. I am listening.',
-      createdAt: new Date(),
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessageItem[]>([INITIAL_WELCOME_MESSAGE]);
   const [input, setInput] = useState('');
   const [heat, setHeat] = useState(40);
   const [mode, setMode] = useState<'warm' | 'watchful' | 'Sekhmet'>('watchful');
@@ -46,10 +53,13 @@ export default function ChatScreen() {
   const [canRetry, setCanRetry] = useState(false);
   const [lastFailedText, setLastFailedText] = useState<string | null>(null);
 
+  // Settings sheet
+  const [settingsVisible, setSettingsVisible] = useState(false);
+
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    // Authenticate anonymously and load historical messages
+    // Authenticate anonymously, load historical messages, and configure idle reminder
     async function init() {
       try {
         const user = await ensureAuthenticatedUser();
@@ -63,6 +73,8 @@ export default function ChatScreen() {
             setHeat(history.heat);
           }
         }
+        await requestNotificationPermissions();
+        await scheduleIdleNotification();
       } catch (err) {
         console.warn('Initialization error:', err);
       } finally {
@@ -102,7 +114,6 @@ export default function ChatScreen() {
       createdAt: new Date(),
     };
 
-    // If text was from input, clear input field
     if (!textToSend) {
       setInput('');
     }
@@ -130,6 +141,8 @@ export default function ChatScreen() {
             setMode(data.mode);
           }
           setIsSending(false);
+          // Refresh the 24-hour idle impatience timer
+          scheduleIdleNotification();
         },
         onError: (err) => {
           handleStreamError(err, text, assistantMsgId, hasReceivedTokens);
@@ -148,7 +161,6 @@ export default function ChatScreen() {
   ) => {
     setIsSending(false);
 
-    // Remove empty assistant placeholder if failed prior to receiving tokens
     if (!hasReceivedTokens) {
       setMessages((prev) => prev.filter((m) => m.id !== assistantMsgId));
     }
@@ -175,7 +187,6 @@ export default function ChatScreen() {
   const handleRetry = () => {
     if (lastFailedText && !isSending) {
       const retryText = lastFailedText;
-      // Remove last user message from failed attempt to avoid duplicates
       setMessages((prev) => {
         const last = prev[prev.length - 1];
         if (last && last.role === 'user' && last.content === retryText) {
@@ -185,6 +196,14 @@ export default function ChatScreen() {
       });
       handleSend(retryText);
     }
+  };
+
+  const handleResetChat = async () => {
+    await resetChat();
+    setMessages([INITIAL_WELCOME_MESSAGE]);
+    setHeat(40);
+    setMode('watchful');
+    await scheduleIdleNotification();
   };
 
   const getBadgeColor = () => {
@@ -199,7 +218,6 @@ export default function ChatScreen() {
   };
 
   const getBackgroundColor = () => {
-    // Dynamic background shift gold -> crimson with heat
     if (heat <= 35) {
       return '#100B05';
     } else if (heat <= 70) {
@@ -225,20 +243,36 @@ export default function ChatScreen() {
             </Text>
           </View>
         </View>
-        {isAuthenticating || isLoadingHistory ? (
-          <ActivityIndicator size="small" color="#EAD196" />
-        ) : (
-          <Text style={styles.userStatus}>
-            {userId ? `ANON:${userId.slice(0, 6)}` : 'OFFLINE'}
-          </Text>
-        )}
+
+        <View style={styles.statusRight}>
+          {isAuthenticating || isLoadingHistory ? (
+            <ActivityIndicator size="small" color="#EAD196" />
+          ) : (
+            <Text style={styles.userStatus}>
+              {userId ? `ANON:${userId.slice(0, 6)}` : 'OFFLINE'}
+            </Text>
+          )}
+
+          <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={() => setSettingsVisible(true)}
+            accessibilityLabel="Sanctuary Settings"
+          >
+            <Text style={styles.settingsButtonIcon}>⚙</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Hathor Presence Chamber Header */}
       <View style={styles.presenceContainer}>
         <HathorAvatar heat={heat} mode={mode} isStreaming={isSending} size={110} />
         <View style={styles.presenceInfo}>
-          <Text style={[styles.presenceTitle, { color: mode === 'Sekhmet' ? '#FCA5A5' : '#FDE68A' }]}>
+          <Text
+            style={[
+              styles.presenceTitle,
+              { color: mode === 'Sekhmet' ? '#FCA5A5' : '#FDE68A' },
+            ]}
+          >
             {mode === 'Sekhmet'
               ? 'SEKHMET'
               : mode === 'watchful'
@@ -329,6 +363,19 @@ export default function ChatScreen() {
           <Text style={styles.sendButtonText}>SEND</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Settings Bottom Sheet Modal */}
+      <SettingsModal
+        visible={settingsVisible}
+        onClose={() => setSettingsVisible(false)}
+        heat={heat}
+        mode={mode}
+        userId={userId}
+        onResetChat={handleResetChat}
+      />
+
+      {/* First-Run 18+ and OOC Disclaimer Modal */}
+      <DisclaimerModal />
     </KeyboardAvoidingView>
   );
 }
@@ -353,6 +400,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  statusRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   statusLabel: {
     color: '#A8929D',
     fontSize: 11,
@@ -373,6 +425,13 @@ const styles = StyleSheet.create({
     color: '#7D6B74',
     fontSize: 11,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  settingsButton: {
+    padding: 4,
+  },
+  settingsButtonIcon: {
+    color: '#D4AF37',
+    fontSize: 18,
   },
   presenceContainer: {
     alignItems: 'center',
