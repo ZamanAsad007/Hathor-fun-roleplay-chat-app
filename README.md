@@ -39,3 +39,20 @@ LLM API (Gemini)    Postgres (messages, chat_state, daily_usage)
 - **AI / LLM**: Gemini Flash via unified Edge Function integration
 - **Packaging**: EAS Build (preview profile APK)
 - **Distribution**: GitHub Releases
+
+## Building & Installation
+
+See [RELEASE.md](file:///mnt/D-Drive/Projects/Hathor/RELEASE.md) for full instructions on building the APK with EAS and installing it on Android devices.
+
+### Quick Commands
+
+```bash
+# Start local Expo development server
+cd app && npm start
+
+# Trigger EAS Android APK preview build
+npm run build:apk
+
+# Deploy Supabase chat edge function
+npm run functions:deploy
+```
