@@ -6,7 +6,7 @@
   "scripts": {
     "db:push": "supabase db push",
     "functions:deploy": "supabase functions deploy chat --no-verify-jwt",
-    "secrets:set": "supabase secrets set APP_SECRET=$APP_SECRET LLM_API_KEY=$LLM_API_KEY DAILY_LIMIT=$DAILY_LIMIT",
+    "secrets:set": "supabase secrets set --env-file .env",
     "secrets:rotate": "./scripts/rotate-secret.sh",
     "build:apk": "cd app && npx eas-cli build -p android --profile preview",
     "build:configure": "cd app && npx eas-cli build:configure"
