@@ -160,23 +160,27 @@ Deno.serve(async (req: Request) => {
               );
             }
 
-            // Save user message and assistant reply to DB
-            await admin.from("messages").insert([
-              { user_id: user.id, role: "user", content: userMessageText },
-              { user_id: user.id, role: "assistant", content: fullReply },
-            ]);
+            // Save user message, assistant reply, and state to DB
+            try {
+              await admin.from("messages").insert([
+                { user_id: user.id, role: "user", content: userMessageText },
+                { user_id: user.id, role: "assistant", content: fullReply },
+              ]);
 
-            // Rolling memory summarization if messages > 20
-            await summarizeHistoryIfNeeded(admin, user.id, summary);
+              // Rolling memory summarization if messages > 20
+              await summarizeHistoryIfNeeded(admin, user.id, summary);
 
-            // Update chat_state (heat, last_seen)
-            await admin
-              .from("chat_state")
-              .update({
-                heat: updatedHeat,
-                last_seen: new Date().toISOString(),
-              })
-              .eq("user_id", user.id);
+              // Update chat_state (heat, last_seen)
+              await admin
+                .from("chat_state")
+                .update({
+                  heat: updatedHeat,
+                  last_seen: new Date().toISOString(),
+                })
+                .eq("user_id", user.id);
+            } catch (persistErr) {
+              console.warn("DB persistence warning:", persistErr);
+            }
 
             // Final SSE event
             controller.enqueue(

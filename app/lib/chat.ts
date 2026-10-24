@@ -24,6 +24,11 @@ export interface StreamCallbacks {
   onError: (error: Error) => void;
 }
 
+export interface StreamChatOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}
+
 /**
  * Loads historical messages and temperament for the current user from Supabase.
  */
@@ -96,8 +101,28 @@ export class NetworkChatError extends Error {
  */
 export async function streamChatMessage(
   message: string,
-  callbacks: StreamCallbacks
+  callbacks: StreamCallbacks,
+  options?: StreamChatOptions
 ): Promise<void> {
+  let hasDone = false;
+  let hasError = false;
+  let lastKnownHeat = 40;
+  let lastKnownMode: 'warm' | 'watchful' | 'Sekhmet' = 'watchful';
+
+  const safeOnDone = (data: StreamDoneData) => {
+    if (!hasDone && !hasError) {
+      hasDone = true;
+      callbacks.onDone(data);
+    }
+  };
+
+  const safeOnError = (error: Error) => {
+    if (!hasError && !hasDone) {
+      hasError = true;
+      callbacks.onError(error);
+    }
+  };
+
   if (!isSupabaseConfigured) {
     // Graceful local preview mode
     const isOOC = message.toLowerCase().includes('(ooc)');
@@ -106,11 +131,15 @@ export async function streamChatMessage(
       : 'The warm breath of the desert stirs around us, little mortal. I hear the quiet murmur of your soul beneath my temple pillars. Speak on.';
     const words = simulated.split(' ');
     for (let i = 0; i < words.length; i++) {
+      if (options?.signal?.aborted) {
+        safeOnDone({ heat: 40, mode: 'watchful' });
+        return;
+      }
       const chunk = (i === 0 ? '' : ' ') + words[i];
       callbacks.onToken(chunk);
       await new Promise((r) => setTimeout(r, 35));
     }
-    callbacks.onDone({ heat: 40, mode: 'watchful' });
+    safeOnDone({ heat: 40, mode: 'watchful' });
     return;
   }
 
@@ -119,15 +148,37 @@ export async function streamChatMessage(
 
   if (!token) {
     const err = new UnauthorizedError('Session expired. Please restart the app.');
-    callbacks.onError(err);
+    safeOnError(err);
     throw err;
+  }
+
+  const internalController = new AbortController();
+  const abortListener = () => {
+    try {
+      internalController.abort();
+    } catch {}
+  };
+
+  if (options?.signal) {
+    if (options.signal.aborted) {
+      internalController.abort();
+    } else {
+      options.signal.addEventListener('abort', abortListener, { once: true });
+    }
   }
 
   const endpoint = `${supabaseUrl}/functions/v1/chat`;
 
+  // Initial connection timeout (30s)
+  const timeoutMs = options?.timeoutMs ?? 30000;
+  let initialTimeoutId: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+    try {
+      internalController.abort();
+    } catch {}
+  }, timeoutMs);
+
   let response: Response;
   try {
-    // expo/fetch supports response streaming in Expo native & modern environments
     const fetchFn = typeof expoFetch === 'function' ? expoFetch : fetch;
     response = await fetchFn(endpoint, {
       method: 'POST',
@@ -137,16 +188,31 @@ export async function streamChatMessage(
         'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({ message, stream: true }),
+      signal: internalController.signal,
     });
   } catch (netErr: any) {
-    const error = new NetworkChatError(netErr?.message || 'Network request failed');
-    callbacks.onError(error);
+    if (options?.signal?.aborted) {
+      safeOnDone({ heat: lastKnownHeat, mode: lastKnownMode });
+      return;
+    }
+    const isTimeout = internalController.signal.aborted;
+    const error = new NetworkChatError(
+      isTimeout
+        ? 'Temple connection timed out. Hathor did not respond.'
+        : netErr?.message || 'Network request failed'
+    );
+    safeOnError(error);
     throw error;
+  } finally {
+    if (initialTimeoutId) {
+      clearTimeout(initialTimeoutId);
+      initialTimeoutId = null;
+    }
   }
 
   if (response.status === 401) {
     const error = new UnauthorizedError('Session expired. Please restart the app.');
-    callbacks.onError(error);
+    safeOnError(error);
     throw error;
   }
 
@@ -159,7 +225,7 @@ export async function streamChatMessage(
       // ignore json parse error
     }
     const error = new RateLimitError(limitMsg);
-    callbacks.onError(error);
+    safeOnError(error);
     throw error;
   }
 
@@ -172,13 +238,13 @@ export async function streamChatMessage(
       // ignore json parse error
     }
     const error = new Error(errMsg);
-    callbacks.onError(error);
+    safeOnError(error);
     throw error;
   }
 
   if (!response.body) {
     const error = new Error('No response body returned from server');
-    callbacks.onError(error);
+    safeOnError(error);
     throw error;
   }
 
@@ -186,11 +252,31 @@ export async function streamChatMessage(
   const decoder = new TextDecoder('utf-8');
   let buffer = '';
 
+  // Stream chunk stall timer (20s without incoming data during active stream)
+  let chunkTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  const resetChunkTimer = () => {
+    if (chunkTimeoutId) clearTimeout(chunkTimeoutId);
+    chunkTimeoutId = setTimeout(() => {
+      try {
+        internalController.abort();
+      } catch {}
+    }, 20000);
+  };
+
   try {
+    resetChunkTimer();
     while (true) {
+      if (options?.signal?.aborted) {
+        try {
+          await reader.cancel();
+        } catch {}
+        break;
+      }
+
       const { done, value } = await reader.read();
       if (done) break;
 
+      resetChunkTimer();
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
       buffer = lines.pop() ?? '';
@@ -216,14 +302,16 @@ export async function streamChatMessage(
             if (currentEvent === 'token' && typeof parsed.token === 'string') {
               callbacks.onToken(parsed.token);
             } else if (currentEvent === 'done') {
-              callbacks.onDone({
-                heat: parsed.heat ?? 40,
-                mode: parsed.mode ?? 'watchful',
+              if (typeof parsed.heat === 'number') lastKnownHeat = parsed.heat;
+              if (parsed.mode) lastKnownMode = parsed.mode;
+              safeOnDone({
+                heat: parsed.heat ?? lastKnownHeat,
+                mode: parsed.mode ?? lastKnownMode,
                 delta: parsed.delta,
                 usage: parsed.usage,
               });
             } else if (currentEvent === 'error') {
-              callbacks.onError(new Error(parsed.error || 'Server stream error'));
+              safeOnError(new Error(parsed.error || 'Server stream error'));
             }
           } catch {
             // raw string fallback or malformed json
@@ -234,10 +322,35 @@ export async function streamChatMessage(
         }
       }
     }
+
+    // If stream reached end without emitting done (e.g. server closed socket early)
+    safeOnDone({
+      heat: lastKnownHeat,
+      mode: lastKnownMode,
+    });
   } catch (streamErr: any) {
-    const error = new NetworkChatError(streamErr?.message || 'Error reading stream');
-    callbacks.onError(error);
+    if (options?.signal?.aborted) {
+      safeOnDone({ heat: lastKnownHeat, mode: lastKnownMode });
+      return;
+    }
+    const isTimeout = internalController.signal.aborted;
+    const error = new NetworkChatError(
+      isTimeout
+        ? 'Temple connection timed out while Hathor was speaking.'
+        : streamErr?.message || 'Error reading stream'
+    );
+    safeOnError(error);
     throw error;
+  } finally {
+    if (chunkTimeoutId) {
+      clearTimeout(chunkTimeoutId);
+      chunkTimeoutId = null;
+    }
+    if (options?.signal) {
+      try {
+        options.signal.removeEventListener('abort', abortListener);
+      } catch {}
+    }
   }
 }
 

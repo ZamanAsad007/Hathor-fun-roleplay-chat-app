@@ -72,6 +72,26 @@ Share the GitHub Release APK link with friends:
 
 ---
 
+## Release Notes: v0.1.1 (Hotfix & Stability Release)
+
+### Fixes & Improvements
+- **Edge-to-Edge Android Keyboard Elevation**:
+  - Dynamically detects software keyboard height and native window resizing in edge-to-edge Android mode.
+  - Automatically offsets container bottom padding by the exact software keyboard height on Android, elevating the TextInput and Send button cleanly above Gboard / virtual keyboards without overlap.
+  - Automatically activates compact presence header mode and scrolls FlatList to latest message upon keyboard focus.
+- **Stop Response (Abort Controller)**:
+  - Added a dedicated `[⏹ STOP]` pill button to the typing indicator bar while Hathor is responding.
+  - Mortals can now cancel/stop ongoing streaming generation immediately, re-enabling the input bar without being trapped or forced to restart.
+- **Chat Reload & Synchronization**:
+  - Added pull-to-refresh (`RefreshControl`) to the chat message list to re-sync conversation history and heat temperament.
+  - Added a dedicated refresh button (`🔄`) in the top status bar for one-tap recovery.
+- **Stream Stalling & Lockup Prevention**:
+  - Added connection and stream idle timeouts (30s initial, 20s stream chunk timeout) to prevent infinite pending states during packet drops.
+  - Wrapped edge function post-generation database operations in try/catch to ensure the `event: done` SSE completion event always reaches the client.
+  - Ensured `setIsSending(false)` executes in all completion and error paths.
+
+---
+
 ## Release Notes: v0.1.0
 
 ### Highlights & Features
