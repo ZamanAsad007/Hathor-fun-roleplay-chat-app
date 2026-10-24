@@ -12,17 +12,18 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ensureAuthenticatedUser } from '../lib/supabase';
-
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  createdAt: Date;
-}
+import {
+  loadChatHistory,
+  streamChatMessage,
+  ChatMessageItem,
+  RateLimitError,
+  UnauthorizedError,
+  NetworkChatError,
+} from '../lib/chat';
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
-  const [messages, setMessages] = useState<Message[]>([
+  const [messages, setMessages] = useState<ChatMessageItem[]>([
     {
       id: 'welcome-1',
       role: 'assistant',
@@ -35,79 +36,155 @@ export default function ChatScreen() {
   const [heat, setHeat] = useState(40);
   const [mode, setMode] = useState<'warm' | 'watchful' | 'Sekhmet'>('watchful');
   const [isAuthenticating, setIsAuthenticating] = useState(true);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+
+  // Error handling states
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [canRetry, setCanRetry] = useState(false);
+  const [lastFailedText, setLastFailedText] = useState<string | null>(null);
 
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    // Authenticate anonymously on startup
-    async function initAuth() {
+    // Authenticate anonymously and load historical messages
+    async function init() {
       try {
         const user = await ensureAuthenticatedUser();
         if (user) {
           setUserId(user.id);
+          const history = await loadChatHistory(user.id);
+          if (history.messages && history.messages.length > 0) {
+            setMessages(history.messages);
+          }
+          if (typeof history.heat === 'number') {
+            setHeat(history.heat);
+          }
         }
       } catch (err) {
-        console.warn('Anonymous authentication error:', err);
+        console.warn('Initialization error:', err);
       } finally {
         setIsAuthenticating(false);
+        setIsLoadingHistory(false);
       }
     }
-    initAuth();
+    init();
   }, []);
-
-  const handleSend = async () => {
-    const text = input.trim();
-    if (!text || isSending) return;
-
-    const userMsg: Message = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: text,
-      createdAt: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMsg]);
-    setInput('');
-    setIsSending(true);
-
-    // Phase 5 simulated reply (transitioning into live streaming in Phase 6)
-    setTimeout(() => {
-      const isOOC = text.toLowerCase().includes('(ooc)');
-      let replyContent =
-        'Your devotion echoes against the stone pillars, little mortal. Continue, before the shadows lengthen.';
-
-      if (isOOC) {
-        replyContent =
-          '(Stepping out of character) Hey, I hear you. You are completely safe here. Let me know whenever you want to pause or resume.';
-      } else if (text.toLowerCase().includes('praise') || text.toLowerCase().includes('goddess')) {
-        replyContent =
-          'A soft desert breeze carries your sweet words to my ears. You please me today, mortal.';
-        setHeat((prev) => Math.max(0, prev - 5));
-      } else if (text.toLowerCase().includes('fake') || text.toLowerCase().includes('hate')) {
-        replyContent =
-          'Mind your tongue, creature of dust. The lioness stirs in the crimson sands.';
-        setHeat((prev) => Math.min(100, prev + 10));
-      }
-
-      const assistantMsg: Message = {
-        id: `assistant-${Date.now()}`,
-        role: 'assistant',
-        content: replyContent,
-        createdAt: new Date(),
-      };
-
-      setMessages((prev) => [...prev, assistantMsg]);
-      setIsSending(false);
-    }, 700);
-  };
 
   useEffect(() => {
     if (heat <= 35) setMode('warm');
     else if (heat <= 70) setMode('watchful');
     else setMode('Sekhmet');
   }, [heat]);
+
+  const handleSend = async (textToSend?: string) => {
+    const text = (textToSend ?? input).trim();
+    if (!text || isSending) return;
+
+    setErrorMessage(null);
+    setCanRetry(false);
+    setLastFailedText(null);
+
+    const userMsg: ChatMessageItem = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: text,
+      createdAt: new Date(),
+    };
+
+    const assistantMsgId = `assistant-${Date.now()}`;
+    const assistantPlaceholder: ChatMessageItem = {
+      id: assistantMsgId,
+      role: 'assistant',
+      content: '',
+      createdAt: new Date(),
+    };
+
+    // If text was from input, clear input field
+    if (!textToSend) {
+      setInput('');
+    }
+
+    setMessages((prev) => [...prev, userMsg, assistantPlaceholder]);
+    setIsSending(true);
+
+    let hasReceivedTokens = false;
+
+    try {
+      await streamChatMessage(text, {
+        onToken: (token: string) => {
+          hasReceivedTokens = true;
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMsgId ? { ...msg, content: msg.content + token } : msg
+            )
+          );
+        },
+        onDone: (data) => {
+          if (typeof data.heat === 'number') {
+            setHeat(data.heat);
+          }
+          if (data.mode) {
+            setMode(data.mode);
+          }
+          setIsSending(false);
+        },
+        onError: (err) => {
+          handleStreamError(err, text, assistantMsgId, hasReceivedTokens);
+        },
+      });
+    } catch (err: any) {
+      handleStreamError(err, text, assistantMsgId, hasReceivedTokens);
+    }
+  };
+
+  const handleStreamError = (
+    err: Error,
+    failedText: string,
+    assistantMsgId: string,
+    hasReceivedTokens: boolean
+  ) => {
+    setIsSending(false);
+
+    // Remove empty assistant placeholder if failed prior to receiving tokens
+    if (!hasReceivedTokens) {
+      setMessages((prev) => prev.filter((m) => m.id !== assistantMsgId));
+    }
+
+    if (err instanceof RateLimitError) {
+      setErrorMessage(err.message || 'Hathor needs rest. Try again tomorrow.');
+      setCanRetry(false);
+      setLastFailedText(null);
+    } else if (err instanceof UnauthorizedError) {
+      setErrorMessage('Invalid app secret. Hathor denies entry.');
+      setCanRetry(false);
+      setLastFailedText(null);
+    } else if (err instanceof NetworkChatError) {
+      setErrorMessage('Connection lost with the temple. Check your network.');
+      setCanRetry(true);
+      setLastFailedText(failedText);
+    } else {
+      setErrorMessage(err.message || 'The sacred connection wavered. Please try again.');
+      setCanRetry(true);
+      setLastFailedText(failedText);
+    }
+  };
+
+  const handleRetry = () => {
+    if (lastFailedText && !isSending) {
+      const retryText = lastFailedText;
+      // Remove last user message from failed attempt to avoid duplicates
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last && last.role === 'user' && last.content === retryText) {
+          return prev.slice(0, -1);
+        }
+        return prev;
+      });
+      handleSend(retryText);
+    }
+  };
 
   const getBadgeColor = () => {
     switch (mode) {
@@ -136,7 +213,7 @@ export default function ChatScreen() {
             </Text>
           </View>
         </View>
-        {isAuthenticating ? (
+        {isAuthenticating || isLoadingHistory ? (
           <ActivityIndicator size="small" color="#EAD196" />
         ) : (
           <Text style={styles.userStatus}>
@@ -164,7 +241,9 @@ export default function ChatScreen() {
               <Text style={isUser ? styles.userSender : styles.assistantSender}>
                 {isUser ? 'MORTAL' : 'HATHOR'}
               </Text>
-              <Text style={styles.messageText}>{item.content}</Text>
+              <Text style={styles.messageText}>
+                {item.content || (isSending && !isUser ? '...' : '')}
+              </Text>
             </View>
           );
         }}
@@ -173,7 +252,27 @@ export default function ChatScreen() {
       {isSending && (
         <View style={styles.typingIndicator}>
           <ActivityIndicator size="small" color="#D4AF37" />
-          <Text style={styles.typingText}>Hathor contemplates your words...</Text>
+          <Text style={styles.typingText}>Hathor responds to your presence...</Text>
+        </View>
+      )}
+
+      {/* Error / Alert Banner */}
+      {errorMessage && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorMessage}>{errorMessage}</Text>
+          <View style={styles.errorActions}>
+            {canRetry && (
+              <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
+                <Text style={styles.retryButtonText}>RETRY</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={styles.dismissButton}
+              onPress={() => setErrorMessage(null)}
+            >
+              <Text style={styles.dismissButtonText}>DISMISS</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -187,10 +286,11 @@ export default function ChatScreen() {
           onChangeText={setInput}
           multiline
           maxLength={1000}
+          editable={!isSending}
         />
         <TouchableOpacity
           style={[styles.sendButton, (!input.trim() || isSending) && styles.sendButtonDisabled]}
-          onPress={handleSend}
+          onPress={() => handleSend()}
           disabled={!input.trim() || isSending}
         >
           <Text style={styles.sendButtonText}>SEND</Text>
@@ -293,6 +393,48 @@ const styles = StyleSheet.create({
     color: '#D4AF37',
     fontSize: 12,
     fontStyle: 'italic',
+  },
+  errorBanner: {
+    backgroundColor: '#351119',
+    borderWidth: 1,
+    borderColor: '#781D2E',
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginVertical: 6,
+    padding: 12,
+    flexDirection: 'column',
+    gap: 8,
+  },
+  errorMessage: {
+    color: '#F8B4C0',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  errorActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  retryButton: {
+    backgroundColor: '#D4AF37',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  retryButtonText: {
+    color: '#0D070A',
+    fontWeight: '700',
+    fontSize: 11,
+    letterSpacing: 0.5,
+  },
+  dismissButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  dismissButtonText: {
+    color: '#C79DAB',
+    fontSize: 11,
+    fontWeight: '600',
   },
   inputContainer: {
     flexDirection: 'row',
