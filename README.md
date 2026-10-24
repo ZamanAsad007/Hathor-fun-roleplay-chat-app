@@ -89,9 +89,9 @@ An immersive mythological chat application featuring **Hathor**, the ancient Egy
 
 ### Download Android APK (Recommended)
 Download the standalone, pre-compiled release APK directly to your Android device:
-📥 **[Download Latest Hathor-v0.1.0.apk](https://github.com/ZamanAsad007/Hathor-fun-roleplay-chat-app/releases/latest)**
+📥 **[Download Latest Hathor Release APK](https://github.com/ZamanAsad007/Hathor-fun-roleplay-chat-app/releases/latest)**
 
-1. On your Android phone, download `Hathor-v0.1.0.apk`.
+1. On your Android phone, download the latest APK (e.g. `Hathor-v0.1.1.apk` or `hathor.apk`).
 2. Allow installation from unknown sources if prompted.
 3. Install and launch—no developer tools, Metro, or PC connection required.
 

@@ -7,9 +7,13 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag to attach APK to (e.g. v0.1.0)'
+        description: 'Release tag to attach APK to (e.g. v0.1.1)'
         required: false
-        default: 'v0.1.0'
+        default: 'v0.1.1'
+      architectures:
+        description: 'Target architectures to build (arm64-v8a,armeabi-v7a for mobile speedup, or armeabi-v7a,arm64-v8a,x86,x86_64 for universal)'
+        required: false
+        default: 'arm64-v8a,armeabi-v7a'
 
 jobs:
   build-apk:
@@ -28,11 +32,17 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'app/package-lock.json'
 
-      - name: Setup Java JDK
+      - name: Setup Java JDK & Gradle Cache
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
+          cache: 'gradle'
+
+      - name: Setup Gradle Build Tooling
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
 
       - name: Install dependencies
         run: |
@@ -54,10 +64,20 @@ jobs:
       - name: Build Android Standalone Release APK
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs='-Xmx4096m -XX:+UseParallelGC -XX:MaxMetaspaceSize=1024m' -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
         run: |
           cd app/android
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon
+          ARCHS="${{ github.event.inputs.architectures || 'arm64-v8a,armeabi-v7a' }}"
+          echo "Building standalone APK with architectures: $ARCHS"
+          ./gradlew assembleRelease \
+            -PreactNativeArchitectures="$ARCHS" \
+            --build-cache \
+            --parallel \
+            --max-workers=$(nproc) \
+            -x lint -x lintVitalRelease \
+            --daemon
+          ./gradlew --stop
 
       - name: Prepare APK Asset
         run: |
@@ -68,14 +88,21 @@ jobs:
             exit 1
           fi
           echo "Found standalone release APK at: $RELEASE_APK"
-          cp "$RELEASE_APK" build-output/Hathor-v0.1.0.apk
+
+          TAG_NAME="${{ github.event.inputs.tag || github.ref_name }}"
+          if [[ -z "$TAG_NAME" || "$TAG_NAME" == "main" || "$TAG_NAME" == "phase-"* || "$TAG_NAME" == "fix/"* ]]; then
+            TAG_NAME="v0.1.1"
+          fi
+
+          cp "$RELEASE_APK" "build-output/Hathor-${TAG_NAME}.apk"
+          cp "$RELEASE_APK" "build-output/hathor.apk"
           ls -lh build-output/
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Hathor-Android-APK
-          path: build-output/Hathor-v0.1.0.apk
+          path: build-output/*.apk
 
       - name: Attach APK to GitHub Release
         env:
@@ -83,7 +110,13 @@ jobs:
         run: |
           TAG_NAME="${{ github.event.inputs.tag || github.ref_name }}"
           if [[ -z "$TAG_NAME" || "$TAG_NAME" == "main" || "$TAG_NAME" == "phase-"* || "$TAG_NAME" == "fix/"* ]]; then
-            TAG_NAME="v0.1.0"
+            TAG_NAME="v0.1.1"
           fi
           echo "Uploading standalone release APK to release: $TAG_NAME"
-          gh release upload "$TAG_NAME" build-output/Hathor-v0.1.0.apk --clobber
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" build-output/Hathor-${TAG_NAME}.apk build-output/hathor.apk --clobber
+          else
+            gh release create "$TAG_NAME" build-output/Hathor-${TAG_NAME}.apk build-output/hathor.apk \
+              --title "Hathor $TAG_NAME - Hotfix & Stability Release" \
+              --notes-file RELEASE.md
+          fi

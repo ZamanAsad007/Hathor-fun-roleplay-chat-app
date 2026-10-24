@@ -10,6 +10,9 @@ import {
   Keyboard,
   Platform,
   ActivityIndicator,
+  RefreshControl,
+  useWindowDimensions,
+  Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ensureAuthenticatedUser } from '../lib/supabase';
@@ -65,6 +68,7 @@ function renderMessageContent(content: string, isSendingPlaceholder: boolean) {
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const [messages, setMessages] = useState<ChatMessageItem[]>([INITIAL_WELCOME_MESSAGE]);
   const [input, setInput] = useState('');
   const [heat, setHeat] = useState(40);
@@ -72,6 +76,7 @@ export default function ChatScreen() {
   const [isAuthenticating, setIsAuthenticating] = useState(true);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
 
   // Audio / Speech State
@@ -86,29 +91,51 @@ export default function ChatScreen() {
   // Settings sheet
   const [settingsVisible, setSettingsVisible] = useState(false);
 
-  // Keyboard visibility tracking for compact presence and input offset
+  // Keyboard visibility and height tracking for compact presence and input offset
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    const handleShow = (e: any) => {
+      const height = e?.endCoordinates?.height || 0;
+      if (height > 0) {
+        setKeyboardHeight(height);
+      }
+      setKeyboardVisible(true);
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    };
+
+    const handleHide = () => {
+      setKeyboardHeight(0);
+      setKeyboardVisible(false);
+    };
+
     const showSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => {
-        setKeyboardVisible(true);
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
-      }
+      handleShow
     );
     const hideSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setKeyboardVisible(false)
+      handleHide
     );
+
+    let extraShowSub: any = null;
+    let extraHideSub: any = null;
+    if (Platform.OS === 'android') {
+      extraShowSub = Keyboard.addListener('keyboardWillShow', handleShow);
+      extraHideSub = Keyboard.addListener('keyboardWillHide', handleHide);
+    }
 
     return () => {
       showSub.remove();
       hideSub.remove();
+      if (extraShowSub) extraShowSub.remove();
+      if (extraHideSub) extraHideSub.remove();
     };
   }, []);
 
@@ -149,6 +176,43 @@ export default function ChatScreen() {
     else setMode('Sekhmet');
   }, [heat]);
 
+  const handleStop = () => {
+    if (abortControllerRef.current) {
+      try {
+        abortControllerRef.current.abort();
+      } catch {}
+      abortControllerRef.current = null;
+    }
+    stopSpeaking();
+    setCurrentlySpeakingId(null);
+    setIsSending(false);
+  };
+
+  const handleRefreshChat = async () => {
+    handleStop();
+    setIsRefreshing(true);
+    setErrorMessage(null);
+    try {
+      const user = await ensureAuthenticatedUser();
+      if (user) {
+        setUserId(user.id);
+        const history = await loadChatHistory(user.id);
+        if (history.messages && history.messages.length > 0) {
+          setMessages(history.messages);
+        }
+        if (typeof history.heat === 'number') {
+          setHeat(history.heat);
+        }
+      }
+    } catch (err: any) {
+      console.warn('Chat refresh error:', err);
+      setErrorMessage('Could not synchronize with the sanctuary. Pull to retry.');
+    } finally {
+      setIsRefreshing(false);
+      setIsSending(false);
+    }
+  };
+
   const handleSend = async (textToSend?: string) => {
     const text = (textToSend ?? input).trim();
     if (!text || isSending) return;
@@ -183,45 +247,59 @@ export default function ChatScreen() {
     setMessages((prev) => [...prev, userMsg, assistantPlaceholder]);
     setIsSending(true);
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     let hasReceivedTokens = false;
     let accumulatedContent = '';
 
     try {
-      await streamChatMessage(text, {
-        onToken: (token: string) => {
-          hasReceivedTokens = true;
-          accumulatedContent += token;
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === assistantMsgId ? { ...msg, content: msg.content + token } : msg
-            )
-          );
-        },
-        onDone: (data) => {
-          if (typeof data.heat === 'number') {
-            setHeat(data.heat);
-          }
-          if (data.mode) {
-            setMode(data.mode);
-          }
-          setIsSending(false);
-          scheduleIdleNotification();
+      await streamChatMessage(
+        text,
+        {
+          onToken: (token: string) => {
+            hasReceivedTokens = true;
+            accumulatedContent += token;
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantMsgId ? { ...msg, content: msg.content + token } : msg
+              )
+            );
+          },
+          onDone: (data) => {
+            if (typeof data.heat === 'number') {
+              setHeat(data.heat);
+            }
+            if (data.mode) {
+              setMode(data.mode);
+            }
+            setIsSending(false);
+            scheduleIdleNotification();
 
-          // Auto-speak if voice mode is enabled
-          if (voiceEnabled && accumulatedContent) {
-            speakHathor(accumulatedContent, data.mode || mode, {
-              onStart: () => setCurrentlySpeakingId(assistantMsgId),
-              onDone: () => setCurrentlySpeakingId(null),
-              onError: () => setCurrentlySpeakingId(null),
-            });
-          }
+            // Auto-speak if voice mode is enabled
+            if (voiceEnabled && accumulatedContent) {
+              speakHathor(accumulatedContent, data.mode || mode, {
+                onStart: () => setCurrentlySpeakingId(assistantMsgId),
+                onDone: () => setCurrentlySpeakingId(null),
+                onError: () => setCurrentlySpeakingId(null),
+              });
+            }
+          },
+          onError: (err) => {
+            handleStreamError(err, text, assistantMsgId, hasReceivedTokens);
+          },
         },
-        onError: (err) => {
-          handleStreamError(err, text, assistantMsgId, hasReceivedTokens);
-        },
-      });
+        { signal: controller.signal }
+      );
     } catch (err: any) {
-      handleStreamError(err, text, assistantMsgId, hasReceivedTokens);
+      if (controller.signal.aborted) {
+        console.log('Stream stopped by mortal.');
+      } else {
+        handleStreamError(err, text, assistantMsgId, hasReceivedTokens);
+      }
+    } finally {
+      setIsSending(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -314,10 +392,19 @@ export default function ChatScreen() {
     }
   };
 
+  const screenHeight = Dimensions.get('screen').height;
+  const isNativeResized = screenHeight - windowHeight > keyboardHeight / 2;
+  const androidBottomPadding =
+    Platform.OS === 'android' && isKeyboardVisible && !isNativeResized ? keyboardHeight : 0;
+
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: getBackgroundColor() }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={[
+        styles.container,
+        { backgroundColor: getBackgroundColor() },
+        androidBottomPadding > 0 ? { paddingBottom: androidBottomPadding } : null,
+      ]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       {/* Heat Status Bar */}
@@ -332,6 +419,20 @@ export default function ChatScreen() {
         </View>
 
         <View style={styles.statusRight}>
+          {/* Refresh / Sync Chat Button */}
+          <TouchableOpacity
+            style={styles.refreshButton}
+            onPress={handleRefreshChat}
+            disabled={isRefreshing}
+            accessibilityLabel="Refresh conversation"
+          >
+            {isRefreshing ? (
+              <ActivityIndicator size="small" color="#D4AF37" />
+            ) : (
+              <Text style={styles.refreshButtonIcon}>🔄</Text>
+            )}
+          </TouchableOpacity>
+
           {/* TTS Auto-Voice Toggle */}
           <TouchableOpacity
             style={[styles.voiceToggle, voiceEnabled && styles.voiceToggleActive]}
@@ -409,9 +510,18 @@ export default function ChatScreen() {
         ref={flatListRef}
         data={messages}
         keyExtractor={(item) => item.id}
+        style={{ flex: 1 }}
         contentContainerStyle={[styles.messageList, { paddingBottom: 16 }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefreshChat}
+            tintColor="#D4AF37"
+            colors={['#D4AF37']}
+          />
+        }
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
         renderItem={({ item }) => {
           const isUser = item.role === 'user';
@@ -451,8 +561,18 @@ export default function ChatScreen() {
 
       {isSending && (
         <View style={styles.typingIndicator}>
-          <ActivityIndicator size="small" color="#D4AF37" />
-          <Text style={styles.typingText}>Hathor responds to your presence...</Text>
+          <View style={styles.typingLeft}>
+            <ActivityIndicator size="small" color="#D4AF37" />
+            <Text style={styles.typingText}>Hathor responds to your presence...</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.stopButton}
+            onPress={handleStop}
+            accessibilityLabel="Stop Hathor's response"
+          >
+            <Text style={styles.stopButtonIcon}>⏹</Text>
+            <Text style={styles.stopButtonText}>STOP</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -558,6 +678,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '700',
+  },
+  refreshButton: {
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: '#261622',
+    borderWidth: 1,
+    borderColor: '#3D2230',
+  },
+  refreshButtonIcon: {
+    fontSize: 13,
   },
   voiceToggle: {
     paddingHorizontal: 6,
@@ -679,14 +810,44 @@ const styles = StyleSheet.create({
   typingIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 6,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#1A0E15',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(212, 175, 55, 0.2)',
+  },
+  typingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
+    flex: 1,
   },
   typingText: {
     color: '#D4AF37',
     fontSize: 12,
     fontStyle: 'italic',
+  },
+  stopButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#351119',
+    borderWidth: 1,
+    borderColor: '#781D2E',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 14,
+    gap: 4,
+  },
+  stopButtonIcon: {
+    color: '#F8B4C0',
+    fontSize: 10,
+  },
+  stopButtonText: {
+    color: '#F8B4C0',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   errorBanner: {
     backgroundColor: '#351119',
