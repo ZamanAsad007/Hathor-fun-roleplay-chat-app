@@ -34,9 +34,33 @@ const INITIAL_WELCOME_MESSAGE: ChatMessageItem = {
   id: 'welcome-1',
   role: 'assistant',
   content:
-    'You step into the sacred court of Hathor. The air is dry and thick with burning myrrh. Speak, little mortal. I am listening.',
+    '*The air is dry and thick with burning myrrh as you step into the sacred court of Hathor.* Speak, little mortal. I am listening.',
   createdAt: new Date(),
 };
+
+function renderMessageContent(content: string, isSendingPlaceholder: boolean) {
+  if (!content) {
+    return isSendingPlaceholder ? <Text style={styles.messageText}>...</Text> : null;
+  }
+
+  const parts = content.split(/(\*[^*]+\*)/g);
+
+  return (
+    <Text style={styles.messageText}>
+      {parts.map((part, index) => {
+        if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+          const actionText = part.slice(1, -1);
+          return (
+            <Text key={index} style={styles.actionText}>
+              *{actionText}*{' '}
+            </Text>
+          );
+        }
+        return <Text key={index}>{part}</Text>;
+      })}
+    </Text>
+  );
+}
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
@@ -384,9 +408,7 @@ export default function ChatScreen() {
                 )}
               </View>
 
-              <Text style={styles.messageText}>
-                {item.content || (isSending && !isUser ? '...' : '')}
-              </Text>
+              {renderMessageContent(item.content, isSending && !isUser)}
             </View>
           );
         }}
@@ -598,6 +620,10 @@ const styles = StyleSheet.create({
     color: '#F4ECEF',
     fontSize: 15,
     lineHeight: 22,
+  },
+  actionText: {
+    color: '#EAD196',
+    fontStyle: 'italic',
   },
   typingIndicator: {
     flexDirection: 'row',

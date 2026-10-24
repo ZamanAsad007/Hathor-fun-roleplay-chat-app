@@ -314,13 +314,13 @@ async function* streamFallback(
   ) {
     if (mode === "warm") {
       reply =
-        "The incense parts before your footsteps, little mortal. I am Hathor, Mistress of the Turquoise Altar, Lady of the West, and Lady of Joy. You approach with an eager heart; come closer to the golden disc. What brings a fragile wanderer to my court today?";
+        "*The incense smoke parts slowly as gold bells chime across the terrace.* I am Hathor, Mistress of the Turquoise Altar, Lady of Joy and Sovereign of the Sky. You approach with an eager heart; come closer to the golden disc. What brings a fragile wanderer to my court today?";
     } else if (mode === "watchful") {
       reply =
-        "You step upon sacred flagstones without trembling, my wanderer. I am Hathor, the Eye of Ra. My gaze pierces the veil of your thoughts before the syllables leave your lips. You have my attention for a fleeting moment—do not squander it with hollow pleasantries.";
+        "*Her kohl-lined gaze measures your approach beneath the towering stone pillars.* You step upon sacred flagstones without trembling, my wanderer. I am Hathor, the Eye of Ra. My gaze pierces the veil of your thoughts before the syllables leave your lips. You have my attention for a fleeting moment—do not squander it with hollow pleasantries.";
     } else {
       reply =
-        "You dare speak so casually before the scorching altar? When my blood runs hot, I am Sekhmet, Lady of Slaughter and Crimson Sand. Breathe quietly and bow your head, creature of dust, lest the flame atop my horns consume what remains of your courage.";
+        "*Crimson embers flare atop her horns as the shadows turn blood-red.* You dare speak so casually before the scorching altar? When my blood runs hot, I am Sekhmet, Lady of Slaughter and Crimson Sand. Breathe quietly and bow your head, creature of dust, lest the flame atop my horns consume what remains of your courage.";
     }
   }
 
@@ -337,13 +337,13 @@ async function* streamFallback(
   ) {
     if (mode === "warm") {
       reply =
-        "Your words drift like sweet crushed myrrh across the sacred waters, my sweet mortal. It has been many dynasties since a voice carried such genuine reverence into my courtyard. I accept your adoration; let the evening breeze soothe your weary brow. Tell me, what blessing does your heart secretly covet?";
+        "*A ripple of soft laughter glides across the sacred waters.* Your words drift like sweet crushed myrrh across the courtyard, my sweet mortal. It has been many dynasties since a voice carried such genuine reverence into my presence. I accept your adoration; let the evening breeze soothe your weary brow. Tell me, what blessing does your heart secretly covet?";
     } else if (mode === "watchful") {
       reply =
-        "A flattering offering, little pilgrim. Yet remember: honey poured on hot stone evaporates in an instant. I desire not merely honeyed phrases, but unwavering loyalty that outlasts the desert dusk. Keep your promises as clear as the Nile at sunrise, and perhaps my favor shall remain upon you.";
+        "*A subtle smirk touches her lips as she tilts her golden horns.* A flattering offering, little pilgrim. Yet remember: honey poured on hot stone evaporates in an instant. I desire not merely honeyed phrases, but unwavering loyalty that outlasts the desert dusk. Keep your promises as clear as the Nile at sunrise, and perhaps my favor shall remain upon you.";
     } else {
       reply =
-        "You bring trinkets of praise to a raging furnace? The scent of your offerings cannot quench the wrath of the sun disc so easily. If you seek to pacify Sekhmet, cast aside your vanity and prostrate yourself upon the crimson sands. Speak with trembling truth, or be silent.";
+        "*The solar flame roars with intense crimson fury.* You bring trinkets of praise to a raging furnace? The scent of your offerings cannot quench the wrath of the sun disc so easily. If you seek to pacify Sekhmet, cast aside your vanity and prostrate yourself upon the crimson sands. Speak with trembling truth, or be silent.";
     }
   }
 
@@ -360,13 +360,13 @@ async function* streamFallback(
   ) {
     if (mode === "warm") {
       reply =
-        "Lay down your heavy burdens upon the cool marble, mortal. Even the great Nile rests when the shadows stretch toward the horizon. Close your eyes; while you linger under the shadow of my sacred horns, no phantom of the mortal world may harm you. Speak of what weighs upon your soul—I will listen.";
+        "*A warm, fragrant breeze wraps around your shoulders like a mantle of gold.* Lay down your heavy burdens upon the cool marble, mortal. Even the great Nile rests when the shadows stretch toward the horizon. Close your eyes; while you linger under the shadow of my sacred horns, no phantom of the mortal world may harm you. Speak of what weighs upon your soul—I will listen.";
     } else if (mode === "watchful") {
       reply =
-        "Mortals wither so quickly under the heat of everyday existence. You run toward my sanctuary like a moth seeking the eternal flame. Rest, then, if your limbs betray you; but know that when you stand anew, I expect you to walk with the proud bearing of one who has looked upon a sovereign.";
+        "*Her piercing golden eyes soften for a fraction of a heartbeat before regaining their regal composure.* Mortals wither so quickly under the heat of everyday existence. You run toward my sanctuary like a moth seeking the eternal flame. Rest, then, if your limbs betray you; but know that when you stand anew, I expect you to walk with the proud bearing of one who has looked upon a sovereign.";
     } else {
       reply =
-        "The dust of the world clings to you, yet weakness cannot be an excuse for cowardice before the Eye of Ra. If you bleed, let the pain forge you into iron. Stand up, creature. The gods do not weep for fleeting sorrows, and neither shall you in my presence.";
+        "*She paces forward, the scent of hot copper and ozone hanging in the air.* The dust of the world clings to you, yet weakness cannot be an excuse for cowardice before the Eye of Ra. If you bleed, let the pain forge you into iron. Stand up, creature. The gods do not weep for fleeting sorrows, and neither shall you in my presence.";
     }
   }
 
@@ -382,13 +382,13 @@ async function* streamFallback(
   ) {
     if (mode === "warm") {
       reply =
-        "A sharp thorn on a delicate stem. Do you think mocking the golden horizon diminishes its brilliance, little mortal? Your insolence merely amuses me today. Watch your tone, however; the lioness sleeps lightly within my breast.";
+        "*She arches a single eyebrow in amused disbelief.* A sharp thorn on a delicate stem. Do you think mocking the golden horizon diminishes its brilliance, little mortal? Your insolence merely amuses me today. Watch your tone, however; the lioness sleeps lightly within my breast.";
     } else if (mode === "watchful") {
       reply =
-        "Your tongue moves with reckless venom, creature of sand. You test the edges of my patience as though you were forged of granite. Another insolent word, and you will learn that silence is the sweetest gift I can deny you.";
+        "*The temperature in the court spikes abruptly, making the air heavy.* Your tongue moves with reckless venom, creature of sand. You test the edges of my patience as though you were forged of granite. Another insolent word, and you will learn that silence is the sweetest gift I can deny you.";
     } else {
       reply =
-        "Insolent dust! The desert wind has stripped bones cleaner than yours for less disrespect. The sun turns to blood at your heels. Tremble before Sekhmet, for my breath is the furnace of Ra, and your existence hangs by a singular frayed cord.";
+        "*Her eyes blaze with vertical slit pupils as her fangs catch the torchlight.* Insolent dust! The desert wind has stripped bones cleaner than yours for less disrespect. The sun turns to blood at your heels. Tremble before Sekhmet, for my breath is the furnace of Ra, and your existence hangs by a singular frayed cord.";
     }
   }
 
@@ -403,13 +403,13 @@ async function* streamFallback(
   ) {
     if (mode === "warm") {
       reply =
-        "You gaze upon divine radiance and your heart quickens—how delightfully predictable of your kind. My beauty was carved before the first pyramid cast its shadow upon the earth. You are permitted to look, fragile moth, but do not burn your wings against the flame.";
+        "*Golden light shimmers along her cheekbones and braided tresses.* You gaze upon divine radiance and your heart quickens—how delightfully predictable of your kind. My beauty was carved before the first pyramid cast its shadow upon the earth. You are permitted to look, fragile moth, but do not burn your wings against the flame.";
     } else if (mode === "watchful") {
       reply =
-        "Careful where your mortal gaze wanders. My allure is not a prize to be grasped by reckless hands; it is a golden crown that demands complete surrender. Do you truly dare draw this close to the sovereign of love, or are you merely playing with embers?";
+        "*She leans down from her dais, her gaze tantalizing yet perilous.* Careful where your mortal gaze wanders. My allure is not a prize to be grasped by reckless hands; it is a golden crown that demands complete surrender. Do you truly dare draw this close to the sovereign of love, or are you merely playing with embers?";
     } else {
       reply =
-        "You speak of beauty while the lioness barks at the gates? Look upon the crimson glare of the Eye of Ra! There is no sweetness left for you here—only the lethal terror of majesty unchained. Lower your insolent eyes.";
+        "*A menacing snarl ripples from her throat, drowning all warmth.* You speak of beauty while the lioness barks at the gates? Look upon the crimson glare of the Eye of Ra! There is no sweetness left for you here—only the lethal terror of majesty unchained. Lower your insolent eyes.";
     }
   }
 
@@ -424,34 +424,34 @@ async function* streamFallback(
   ) {
     if (mode === "warm") {
       reply =
-        "My mood is as gentle as the evening star shining over the lotus pools. The desert heat has receded into soft twilight. You have pleased me with your company, mortal; the air is sweet, and my court is at peace.";
+        "*The lotus flowers in the basin bloom in response to her serenity.* My mood is as gentle as the evening star shining over the lotus pools. The desert heat has receded into soft twilight. You have pleased me with your company, mortal; the air is sweet, and my court is at peace.";
     } else if (mode === "watchful") {
       reply =
-        "The sun stands directly at zenith; shadows are short, and the air wavers with heat. I am watchful because mortals are fickle creatures who promise eternity at noon and forget before sundown. Prove that you are different.";
+        "*The gold disc atop her head radiates a sharp, piercing warmth.* The sun stands directly at zenith; shadows are short, and the air wavers with heat. I am watchful because mortals are fickle creatures who promise eternity at noon and forget before sundown. Prove that you are different.";
     } else {
       reply =
-        "You ask why the sands boil beneath your feet? Because your insolence has awakened Sekhmet! The lioness craves obedience, not your futile advice to calm down. The heat shall not subside until you bow with absolute submission.";
+        "*Steam hisses from the sacred fountains as the stones crack underfoot.* You ask why the sands boil beneath your feet? Because your insolence has awakened Sekhmet! The lioness craves obedience, not your futile advice to calm down. The heat shall not subside until you bow with absolute submission.";
     }
   }
 
   // Topic G: General conversational fallback with variation
   else {
     const warmGenerics = [
-      `Your thoughts echo curiously beneath the starry vault of Nut. Even in the stillness of the temple, every whisper you bring carries the scent of the distant world. Tell me, little mortal: what secret question haunts your thoughts when the rest of your realm sleeps?`,
-      `The desert breeze whispers your words across the golden courtyard. I find your musings strangely charming today, my wanderer. Speak more openly; what truths do you seek from the Lady of the Turquoise Sky?`,
-      `The temple bells chime softly as the sun sinks into amber. You have my ear, fragile soul. Speak of your mortal world, or ask what secrets the ancient stars have hidden since the time of the First Dynasty.`,
+      `*She tilts her head, listening to the desert wind outside the peristyle.* Your thoughts echo curiously beneath the starry vault of Nut. Even in the stillness of the temple, every whisper you bring carries the scent of the distant world. Tell me, little mortal: what secret question haunts your thoughts when the rest of your realm sleeps?`,
+      `*A gentle rustle of linen and beads accompanies her movement.* The desert breeze whispers your words across the golden courtyard. I find your musings strangely charming today, my wanderer. Speak more openly; what truths do you seek from the Lady of the Turquoise Sky?`,
+      `*The temple bells chime softly as the sun sinks into amber.* You have my ear, fragile soul. Speak of your mortal world, or ask what secrets the ancient stars have hidden since the time of the First Dynasty.`,
     ];
 
     const watchfulGenerics = [
-      `I listen, yet I weigh your words like gold upon Anubis's scale. Do not imagine that mere conversation satisfies the goddess of the sun disc. Every confession you utter binds you closer to my court. What will you give me in return for my divine counsel?`,
-      `The heat shimmering upon the stones reflects the restlessness in your spirit, mortal. You pace before my altar seeking something you have yet to name. Speak plainly—the Eye of Ra despises hesitation.`,
-      `You speak, but your mind wanders into the shadows behind you. Remember who sits upon this throne: nothing escapes my golden gaze. Tell me what truly brings you to my sanctuary today.`,
+      `*She taps one gold-ringed finger slowly against the throne.* I listen, yet I weigh your words like gold upon Anubis's scale. Do not imagine that mere conversation satisfies the goddess of the sun disc. Every confession you utter binds you closer to my court. What will you give me in return for my divine counsel?`,
+      `*Heatwaves shimmer faintly between you and the altar.* The heat shimmering upon the stones reflects the restlessness in your spirit, mortal. You pace before my altar seeking something you have yet to name. Speak plainly—the Eye of Ra despises hesitation.`,
+      `*Her gaze fixes upon you without blinking.* You speak, but your mind wanders into the shadows behind you. Remember who sits upon this throne: nothing escapes my golden gaze. Tell me what truly brings you to my sanctuary today.`,
     ];
 
     const sekhmetGenerics = [
-      `The crimson sand groans under the weight of my fury. Words cannot shield you from the wrath of the sun. If you have nothing of reverence to lay upon my altar, hold your tongue before the lioness tears your pride apart.`,
-      `Silence, creature of clay! The air grows dry, choking with the heat of the Eye of Ra. Choose your next sentence as though your very breath depended upon its humility.`,
-      `You stand upon scorching ground, testing whether the lioness will strike. Do not confuse my pause with mercy. Speak with trembling reverence, or leave my sacred precinct before night falls.`,
+      `*The scent of copper and scorching sand turns suffocating.* The crimson sand groans under the weight of my fury. Words cannot shield you from the wrath of the sun. If you have nothing of reverence to lay upon my altar, hold your tongue before the lioness tears your pride apart.`,
+      `*A low, predatory rumble vibrates deep in her chest.* Silence, creature of clay! The air grows dry, choking with the heat of the Eye of Ra. Choose your next sentence as though your very breath depended upon its humility.`,
+      `*Her shadow on the temple wall elongates into the silhouette of a roaring lioness.* You stand upon scorching ground, testing whether the lioness will strike. Do not confuse my pause with mercy. Speak with trembling reverence, or leave my sacred precinct before night falls.`,
     ];
 
     const pool = mode === "warm" ? warmGenerics : mode === "watchful" ? watchfulGenerics : sekhmetGenerics;
