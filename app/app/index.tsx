@@ -20,6 +20,7 @@ import {
   UnauthorizedError,
   NetworkChatError,
 } from '../lib/chat';
+import { HathorAvatar } from '../components/HathorAvatar';
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
@@ -197,9 +198,20 @@ export default function ChatScreen() {
     }
   };
 
+  const getBackgroundColor = () => {
+    // Dynamic background shift gold -> crimson with heat
+    if (heat <= 35) {
+      return '#100B05';
+    } else if (heat <= 70) {
+      return '#180C07';
+    } else {
+      return '#26060A';
+    }
+  };
+
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: getBackgroundColor() }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
@@ -220,6 +232,27 @@ export default function ChatScreen() {
             {userId ? `ANON:${userId.slice(0, 6)}` : 'OFFLINE'}
           </Text>
         )}
+      </View>
+
+      {/* Hathor Presence Chamber Header */}
+      <View style={styles.presenceContainer}>
+        <HathorAvatar heat={heat} mode={mode} isStreaming={isSending} size={110} />
+        <View style={styles.presenceInfo}>
+          <Text style={[styles.presenceTitle, { color: mode === 'Sekhmet' ? '#FCA5A5' : '#FDE68A' }]}>
+            {mode === 'Sekhmet'
+              ? 'SEKHMET'
+              : mode === 'watchful'
+              ? 'WATCHFUL'
+              : 'WARM HATHOR'}
+          </Text>
+          <Text style={styles.presenceSubtitle}>
+            {mode === 'Sekhmet'
+              ? 'Cold fury • Scorching imagery'
+              : mode === 'watchful'
+              ? 'Watchful • Teasing & possessive'
+              : 'Warm • Amused & playful'}
+          </Text>
+        </View>
       </View>
 
       {/* Message List */}
@@ -340,6 +373,29 @@ const styles = StyleSheet.create({
     color: '#7D6B74',
     fontSize: 11,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  presenceContainer: {
+    alignItems: 'center',
+    paddingTop: 10,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(212, 175, 55, 0.15)',
+  },
+  presenceInfo: {
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  presenceTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
+  presenceSubtitle: {
+    color: '#9CA3AF',
+    fontSize: 11,
+    fontStyle: 'italic',
+    marginTop: 2,
   },
   messageList: {
     paddingHorizontal: 16,
