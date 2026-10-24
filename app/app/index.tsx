@@ -242,7 +242,7 @@ export default function ChatScreen() {
       setCanRetry(false);
       setLastFailedText(null);
     } else if (err instanceof UnauthorizedError) {
-      setErrorMessage('Invalid app secret. Hathor denies entry.');
+      setErrorMessage('Session expired. Hathor denies entry. Please restart the app.');
       setCanRetry(false);
       setLastFailedText(null);
     } else if (err instanceof NetworkChatError) {

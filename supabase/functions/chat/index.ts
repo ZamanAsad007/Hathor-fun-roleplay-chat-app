@@ -11,7 +11,7 @@ import {
 
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-app-secret",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
 };
 
@@ -21,20 +21,6 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const appSecret = req.headers.get("x-app-secret");
-    const rawExpectedSecrets = Deno.env.get("APP_SECRET") || "";
-    const validSecrets = rawExpectedSecrets
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    if (validSecrets.length === 0 || !appSecret || !validSecrets.includes(appSecret)) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized: Invalid or missing app secret" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     const authHeader = req.headers.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return new Response(

@@ -44,7 +44,6 @@ jobs:
           cat << 'EOF' > app/.env
           EXPO_PUBLIC_SUPABASE_URL=${{ secrets.EXPO_PUBLIC_SUPABASE_URL || 'https://bkuiwsoylzelnzvfuzwd.supabase.co' }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJrdWl3c295bHplbG56dmZ1endkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NDEwMDMsImV4cCI6MjEwODMxNzAwM30.R6v24lWYYWP3QPyHtAQ7QLidow3aJ2syPLD7I3lsTUA' }}
-          EXPO_PUBLIC_APP_SECRET=${{ secrets.EXPO_PUBLIC_APP_SECRET || '8b95b88088443c60ceca52d5e365aa61df6c34d5d9e0963c90eb22a08bedafed' }}
           EOF
 
       - name: Generate Android Native Project (Expo Prebuild)

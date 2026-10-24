@@ -1,5 +1,5 @@
 import { fetch as expoFetch } from 'expo/fetch';
-import { supabase, supabaseUrl, appSecret, isSupabaseConfigured } from './supabase';
+import { supabase, supabaseUrl, isSupabaseConfigured } from './supabase';
 
 export interface ChatMessageItem {
   id: string;
@@ -134,7 +134,6 @@ export async function streamChatMessage(
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'text/event-stream',
-        'x-app-secret': appSecret,
         'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({ message, stream: true }),
@@ -146,7 +145,7 @@ export async function streamChatMessage(
   }
 
   if (response.status === 401) {
-    const error = new UnauthorizedError('Invalid app secret');
+    const error = new UnauthorizedError('Session expired. Please restart the app.');
     callbacks.onError(error);
     throw error;
   }
@@ -262,7 +261,6 @@ export async function resetChat(): Promise<void> {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-app-secret': appSecret,
       'Authorization': `Bearer ${token}`,
     },
     body: JSON.stringify({ action: 'reset' }),

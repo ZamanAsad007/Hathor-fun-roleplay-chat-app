@@ -42,7 +42,6 @@ const defaultAnonKey = 'placeholder-anon-key';
 
 export const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || defaultSupabaseUrl;
 export const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || defaultAnonKey;
-export const appSecret = process.env.EXPO_PUBLIC_APP_SECRET || '';
 
 export const isSupabaseConfigured =
   Boolean(process.env.EXPO_PUBLIC_SUPABASE_URL) &&
