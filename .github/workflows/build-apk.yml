@@ -34,9 +34,6 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Install dependencies
         run: |
           cd app
@@ -52,6 +49,8 @@ jobs:
           npx expo prebuild --platform android --clean
 
       - name: Build Android APK
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
         run: |
           cd app/android
           chmod +x gradlew
