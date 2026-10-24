@@ -14,6 +14,7 @@
     },
     "android": {
       "package": "com.zamanasad.hathor",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#120B0D",
         "foregroundImage": "./assets/android-icon-foreground.png",

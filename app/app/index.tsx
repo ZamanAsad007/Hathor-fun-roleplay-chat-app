@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   FlatList,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   ActivityIndicator,
 } from 'react-native';
@@ -85,7 +86,31 @@ export default function ChatScreen() {
   // Settings sheet
   const [settingsVisible, setSettingsVisible] = useState(false);
 
+  // Keyboard visibility tracking for compact presence and input offset
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
   const flatListRef = useRef<FlatList>(null);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => {
+        setKeyboardVisible(true);
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardVisible(false)
+    );
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     // Authenticate anonymously, load historical messages, and configure idle reminder
@@ -292,11 +317,11 @@ export default function ChatScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: getBackgroundColor() }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       {/* Heat Status Bar */}
-      <View style={styles.statusBar}>
+      <View style={[styles.statusBar, { paddingTop: Math.max(insets.top, 10) }]}>
         <View style={styles.statusLeft}>
           <Text style={styles.statusLabel}>TEMPERAMENT</Text>
           <View style={[styles.badge, { backgroundColor: getBadgeColor() }]}>
@@ -339,18 +364,24 @@ export default function ChatScreen() {
       </View>
 
       {/* Hathor Presence Chamber Header */}
-      <View style={styles.presenceContainer}>
+      <View
+        style={[
+          styles.presenceContainer,
+          isKeyboardVisible && styles.presenceContainerCompact,
+        ]}
+      >
         <HathorAvatar
           heat={heat}
           mode={mode}
           isStreaming={isSending || !!currentlySpeakingId}
-          size={110}
+          size={isKeyboardVisible ? 52 : 110}
         />
         <View style={styles.presenceInfo}>
           <Text
             style={[
               styles.presenceTitle,
               { color: mode === 'Sekhmet' ? '#FCA5A5' : '#FDE68A' },
+              isKeyboardVisible && styles.presenceTitleCompact,
             ]}
           >
             {mode === 'Sekhmet'
@@ -359,15 +390,17 @@ export default function ChatScreen() {
               ? 'WATCHFUL'
               : 'WARM HATHOR'}
           </Text>
-          <Text style={styles.presenceSubtitle}>
-            {currentlySpeakingId
-              ? 'Speaking aloud...'
-              : mode === 'Sekhmet'
-              ? 'Cold fury • Scorching imagery'
-              : mode === 'watchful'
-              ? 'Watchful • Teasing & possessive'
-              : 'Warm • Amused & playful'}
-          </Text>
+          {!isKeyboardVisible && (
+            <Text style={styles.presenceSubtitle}>
+              {currentlySpeakingId
+                ? 'Speaking aloud...'
+                : mode === 'Sekhmet'
+                ? 'Cold fury • Scorching imagery'
+                : mode === 'watchful'
+                ? 'Watchful • Teasing & possessive'
+                : 'Warm • Amused & playful'}
+            </Text>
+          )}
         </View>
       </View>
 
@@ -377,6 +410,8 @@ export default function ChatScreen() {
         data={messages}
         keyExtractor={(item) => item.id}
         contentContainerStyle={[styles.messageList, { paddingBottom: 16 }]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
         renderItem={({ item }) => {
           const isUser = item.role === 'user';
@@ -442,7 +477,12 @@ export default function ChatScreen() {
       )}
 
       {/* Input Bar */}
-      <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+      <View
+        style={[
+          styles.inputContainer,
+          { paddingBottom: isKeyboardVisible ? 10 : Math.max(insets.bottom, 12) },
+        ]}
+      >
         <TextInput
           style={styles.input}
           placeholder="Speak to Hathor... (type (ooc) to exit persona)"
@@ -553,6 +593,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(212, 175, 55, 0.15)',
   },
+  presenceContainerCompact: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    paddingTop: 4,
+    paddingBottom: 4,
+    gap: 10,
+  },
   presenceInfo: {
     alignItems: 'center',
     marginTop: 4,
@@ -562,6 +609,10 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 2,
     textTransform: 'uppercase',
+  },
+  presenceTitleCompact: {
+    fontSize: 12,
+    letterSpacing: 1,
   },
   presenceSubtitle: {
     color: '#9CA3AF',
