@@ -27,14 +27,19 @@ export async function* callLLM(
   systemPrompt: string,
   options: LLMStreamOptions = {}
 ): AsyncGenerator<string, void, unknown> {
-  const provider = (Deno.env.get("LLM_PROVIDER") || "gemini").toLowerCase().trim();
+  let provider = (Deno.env.get("LLM_PROVIDER") || "gemini").toLowerCase().trim();
   const apiKey =
     Deno.env.get("LLM_API_KEY") ||
+    Deno.env.get("GROQ_API_KEY") ||
     Deno.env.get("GEMINI_API_KEY") ||
     Deno.env.get("ANTHROPIC_API_KEY") ||
     Deno.env.get("OPENAI_API_KEY") ||
-    Deno.env.get("GROQ_API_KEY") ||
     "";
+
+  // Auto-detect Groq keys prefixed with gsk_
+  if (apiKey.startsWith("gsk_") && provider === "gemini") {
+    provider = "groq";
+  }
 
   if (apiKey) {
     try {
@@ -213,9 +218,11 @@ async function* streamOpenAI(
   apiKey: string,
   options: LLMStreamOptions
 ): AsyncGenerator<string, void, unknown> {
-  const isGroq = (Deno.env.get("LLM_PROVIDER") || "").toLowerCase().includes("groq");
+  const isGroq =
+    (Deno.env.get("LLM_PROVIDER") || "").toLowerCase().includes("groq") ||
+    apiKey.startsWith("gsk_");
   const defaultBaseUrl = isGroq ? "https://api.groq.com/openai/v1" : "https://api.openai.com/v1";
-  const defaultModel = isGroq ? "llama-3.3-70b-versatile" : "gpt-4o-mini";
+  const defaultModel = isGroq ? "qwen/qwen3.8-27b" : "gpt-4o-mini";
 
   const baseUrl = Deno.env.get("OPENAI_BASE_URL") || defaultBaseUrl;
   const model = options.model || Deno.env.get("LLM_MODEL") || defaultModel;
