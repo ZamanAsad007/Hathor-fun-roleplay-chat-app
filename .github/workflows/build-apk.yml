@@ -32,17 +32,11 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'app/package-lock.json'
 
-      - name: Setup Java JDK & Gradle Cache
+      - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
-
-      - name: Setup Gradle Build Tooling
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          cache-read-only: false
 
       - name: Install dependencies
         run: |
@@ -60,6 +54,12 @@ jobs:
         run: |
           cd app
           npx expo prebuild --platform android --clean
+
+      - name: Setup Gradle Build Tooling & Cache
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          build-root-directory: app/android
+          cache-read-only: false
 
       - name: Build Android Standalone Release APK
         env:
