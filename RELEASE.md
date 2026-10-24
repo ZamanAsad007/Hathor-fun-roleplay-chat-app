@@ -30,7 +30,6 @@ The project is configured with Expo Application Services (EAS) using the `previe
    ```bash
    eas env:create --scope project --name EXPO_PUBLIC_SUPABASE_URL --value "https://<your-project-ref>.supabase.co"
    eas env:create --scope project --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "<your-anon-key>"
-   eas env:create --scope project --name EXPO_PUBLIC_APP_SECRET --value "<your-app-secret>"
    ```
 
 4. **Trigger Android APK Build**:

@@ -58,7 +58,7 @@ An immersive mythological chat application featuring **Hathor**, the ancient Egy
 │             Mobile Client (Android APK / Web)          │
 │       Expo SDK 58 • React Native 0.88 • Reanimated     │
 └───────────┬────────────────────────────────┬───────────┘
-            │ HTTPS + x-app-secret           │ Anonymous Auth
+            │ HTTPS Bearer JWT               │ Anonymous Auth
             │ SSE text/event-stream          │ Messages & State
             ▼                                ▼
 ┌──────────────────────────────┐  ┌───────────────────────┐
@@ -118,8 +118,7 @@ SUPABASE_URL=https://<your-project-ref>.supabase.co
 SUPABASE_ANON_KEY=<your-anon-key>
 SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>
 
-# App Secret & Limits
-APP_SECRET=<your-64-character-hex-secret>
+# Server Quotas & Limits
 DAILY_LIMIT=60
 
 # LLM Configuration (Groq recommended)
@@ -133,7 +132,6 @@ Configure `app/.env` for the client:
 ```env
 EXPO_PUBLIC_SUPABASE_URL=https://<your-project-ref>.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=<your-anon-key>
-EXPO_PUBLIC_APP_SECRET=<your-64-character-hex-secret>
 ```
 
 ### 3. Run the Mobile / Web Client
